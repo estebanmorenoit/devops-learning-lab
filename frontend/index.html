@@ -937,6 +937,7 @@ function connectWS() {
   ws.onopen = () => {
     wsReady = true;
     updateConnStatus(true);
+    if (term) ws.send(JSON.stringify({ type: "resize", cols: term.cols, rows: term.rows }));
     while (cmdQueue.length) sendCommand(cmdQueue.shift());
     // Heartbeat: keep connection alive and detect stale sockets
     if (heartbeatTimer) clearInterval(heartbeatTimer);
