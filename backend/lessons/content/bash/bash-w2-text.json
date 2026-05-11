@@ -1,0 +1,46 @@
+{
+  "title": "Text & Data Wrangling",
+  "phase": "bash",
+  "week": 2,
+  "category": "Bash",
+  "duration": "~1 hour",
+  "summary": "Master grep, awk, sed, and jq — the tools you use every day without fully knowing.",
+  "sections": [
+    {
+      "id": "grep",
+      "title": "grep — find what you need",
+      "type": "lesson",
+      "body": "```bash\n# Basic grep\ngrep 'Error' app.log\n\n# -E: extended regex (use this by default)\ngrep -E 'Error|WARN' app.log\n\n# -i: case insensitive\ngrep -i 'oomkilled' kubectl-events.log\n\n# -v: invert (lines that DON'T match)\ngrep -v '^#' config.yaml     # remove comment lines\n\n# -A/-B/-C: lines After/Before/Context\ngrep -A 5 'BackOff' pod.log   # 5 lines after each match\n\n# -o: print only the matching part\ngrep -oE '[0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+' access.log  # extract IPs\n\n# Useful in DevOps:\n# Find all image tags in k8s manifests\ngrep -rE 'image:\\s+\\S+' ./helm-charts/\n\n# Find pods NOT in Running state from kubectl output\nkubectl get pods -A | grep -v Running | grep -v Completed | grep -v NAME\n```"
+    },
+    {
+      "id": "awk",
+      "title": "awk — process columns and patterns",
+      "type": "lesson",
+      "body": "awk processes text line by line. Fields are split by whitespace (or a delimiter you set).\n\n```bash\n# $1, $2... are fields. $0 is the whole line. NR is line number.\nkubectl get pods | awk '{print $1, $3}'  # NAME and STATUS columns\n\n# Skip header line\nkubectl get pods | awk 'NR>1 {print $1}'\n\n# Filter by pattern in a field\nkubectl get pods -A | awk '$4 != \"Running\" && $4 != \"STATUS\" {print $1, $2, $4}'\n\n# Sum a column (great for AWS costs)\naws ce get-cost-and-usage ... | awk -F'\"' '/Amount/ {sum += $4} END {print \"Total: $\" sum}'\n\n# Custom delimiter with -F\ncat /etc/passwd | awk -F: '{print $1, $6}'  # username and home dir\n\n# Multiple conditions\nkubectl get pods -A | awk '\n    $4 == \"CrashLoopBackOff\" { print \"CRASH:\", $1, $2 }\n    $4 == \"OOMKilled\"        { print \"OOM:\",   $1, $2 }\n'\n\n# Practical: get all non-running pods across namespaces\nkubectl get pods -A --no-headers | \\\n    awk '$4 !~ /Running|Completed|Succeeded/ {printf \"%-30s %-40s %s\\n\", $1, $2, $4}'\n```"
+    },
+    {
+      "id": "sed",
+      "title": "sed — stream editor for substitutions",
+      "type": "lesson",
+      "body": "sed is best at find-and-replace on streams.\n\n```bash\n# Basic substitution: s/pattern/replacement/flags\necho 'image: nginx:latest' | sed 's/latest/1.25.3/'\n\n# g flag: replace ALL occurrences on each line\necho 'foo foo foo' | sed 's/foo/bar/g'\n\n# -i: edit file in place (use -i.bak for a backup)\nsed -i.bak 's/replicas: 1/replicas: 3/' deployment.yaml\n\n# Delete lines matching pattern\nsed '/^#/d' config.yaml       # delete comment lines\nsed '/^$/d' config.yaml       # delete empty lines\n\n# Print only matching lines (like grep)\nsed -n '/Error/p' app.log\n\n# Extract a range of lines\nsed -n '10,20p' large-file.log\n\n# Practical: update image tag in a values file\nNEW_TAG=\"v1.2.3\"\nsed -i \"s|tag: .*|tag: ${NEW_TAG}|\" values.yaml\n\n# Replace a specific key=value in a .env file\nsed -i \"s|^AWS_REGION=.*|AWS_REGION=eu-west-1|\" .env\n```\n\nWhen to use sed vs awk:\n- **sed**: substitution, deletion, line ranges — when you know the pattern and want to change it\n- **awk**: column processing, conditions, arithmetic — when you need to reason about fields"
+    },
+    {
+      "id": "jq",
+      "title": "jq — JSON is your daily driver now",
+      "type": "lesson",
+      "body": "jq is essential for working with kubectl, AWS CLI, GitLab API, Harbor API, Terraform output.\n\n```bash\n# Pretty print\nkubectl get pod my-pod -o json | jq .\n\n# Extract a single field\nkubectl get pod my-pod -o json | jq '.status.phase'\n\n# Iterate over array\nkubectl get pods -o json | jq '.items[] | .metadata.name'\n\n# Multiple fields as object\nkubectl get pods -o json | jq '.items[] | {name: .metadata.name, status: .status.phase}'\n\n# Filter array by condition\nkubectl get pods -o json | jq '.items[] | select(.status.phase != \"Running\") | .metadata.name'\n\n# -r: raw output (no quotes around strings)\nkubectl get pods -o json | jq -r '.items[] | .metadata.name'\n\n# Real patterns you'll use with AWS CLI:\n# List all EC2 instances with their state\naws ec2 describe-instances | jq -r \\\n    '.Reservations[].Instances[] | [.InstanceId, .InstanceType, .State.Name] | @tsv'\n\n# Get images from ECR repo\naws ecr list-images --repository-name my-repo | \\\n    jq -r '.imageIds[] | select(.imageTag != null) | .imageTag' | sort\n\n# ArgoCD: get all apps not Synced\nargocd app list -o json | \\\n    jq -r '.[] | select(.status.sync.status != \"Synced\") | .metadata.name'\n\n# Harbor: get robot accounts\ncurl -s https://harbor.example.com/api/v2.0/robots \\\n    -H \"Authorization: Basic $HARBOR_TOKEN\" | \\\n    jq -r '.[] | [.name, .level, .disable] | @tsv'\n\n# Build a jq query step by step:\n# 1. See full structure first:\nkubectl get nodes -o json | jq 'keys'\n# 2. Drill down:\nkubectl get nodes -o json | jq '.items[0] | keys'\n# 3. Find what you need:\nkubectl get nodes -o json | jq '.items[0].status.conditions'\n# 4. Filter:\nkubectl get nodes -o json | jq '.items[].status.conditions[] | select(.type==\"Ready\") | {name: .status}'\n```"
+    },
+    {
+      "id": "string-manip",
+      "title": "String manipulation without external tools",
+      "type": "lesson",
+      "body": "Pure bash string operations — faster than spawning a subprocess.\n\n```bash\nFILE=\"/path/to/my-service-v1.2.3.yaml\"\n\n# Get filename from path (like basename)\necho \"${FILE##*/}\"          # my-service-v1.2.3.yaml\n\n# Get directory (like dirname)\necho \"${FILE%/*}\"           # /path/to\n\n# Strip extension\necho \"${FILE%.*}\"           # /path/to/my-service-v1.2.3\n\n# Get extension\necho \"${FILE##*.}\"          # yaml\n\n# Substring\nSTR=\"eks-prod-mach-x7kq\"\necho \"${STR:0:8}\"           # eks-prod (start:length)\n\n# Replace\necho \"${STR/prod/staging}\"  # eks-staging-mach-x7kq\necho \"${STR//k/K}\"          # replace all occurrences\n\n# Uppercase / lowercase\necho \"${STR^^}\"             # EKS-PROD-MACH-X7KQ\necho \"${STR,,}\"             # eks-prod-mach-x7kq\n\n# Check if string contains substring\nif [[ \"$STR\" == *\"prod\"* ]]; then\n    echo \"This is a production cluster!\"\nfi\n\n# Check if starts/ends with\n[[ \"$STR\" == eks-* ]] && echo \"EKS cluster\"\n[[ \"$FILE\" == *.yaml ]] && echo \"YAML file\"\n\n# String length\necho \"${#STR}\"              # 17\n```"
+    },
+    {
+      "id": "exercise",
+      "title": "Exercise: kubectl pod health reporter",
+      "type": "exercise",
+      "body": "Write a script `pod-health.sh` that:\n\n1. Runs `kubectl get pods -A -o json`\n2. Uses `jq` to extract: namespace, name, phase, restartCount, and image\n3. Prints a formatted report of pods that are NOT Running/Succeeded\n4. Groups output by namespace\n5. Highlights pods with restartCount > 5\n\nExpected output format:\n```\n=== Namespace: kube-system ===\n  [WARN] coredns-abc123 | CrashLoopBackOff | restarts: 8 | image: coredns/coredns:1.9.3\n\n=== Namespace: argocd ===\n  [OK]   argocd-server-xyz | Running | restarts: 0 | image: argoproj/argocd:v2.14.0\n```\n\nSkeleton:\n\n```bash\n#!/usr/bin/env bash\nset -euo pipefail\n\n# Get pod data as TSV: namespace, name, phase, restarts, image\nkubectl get pods -A -o json | jq -r '\n    .items[] |\n    [\n        .metadata.namespace,\n        .metadata.name,\n        .status.phase // \"Unknown\",\n        # TODO: get restart count from containerStatuses\n        # TODO: get first container image\n    ] | @tsv\n' | sort | while IFS=$'\\t' read -r ns name phase restarts image; do\n    # TODO: format output, group by namespace, flag high restarts\n    echo \"$ns | $name | $phase | $restarts | $image\"\ndone\n```\n\nHints:\n- jq: `.status.containerStatuses[0].restartCount // 0`\n- jq: `.spec.containers[0].image`\n- Track current namespace with a variable to print headers\n- Use `[[ $restarts -gt 5 ]]` for the restart check"
+    }
+  ]
+}

@@ -1,0 +1,46 @@
+{
+  "title": "Arrays & Associative Arrays",
+  "phase": "bash-advanced",
+  "week": 1,
+  "category": "Bash Advanced",
+  "duration": "~60 min",
+  "summary": "Bash arrays are underused and misunderstood. Indexed arrays for lists, associative arrays for key-value maps — both are essential for writing scripts that don't fall apart on filenames with spaces.",
+  "sections": [
+    {
+      "id": "indexed-arrays",
+      "title": "Indexed arrays",
+      "type": "lesson",
+      "body": "**Why:** without arrays you end up doing fragile things like `PODS=$(kubectl get pods | awk '{print $1}')` and iterating over a string. When a pod name has a space (or your output has a blank line), it breaks. Arrays fix this.\n\n```bash\n# Declare and populate\npods=(\"argocd-server-abc\" \"argocd-repo-server-xyz\" \"argocd-redis-123\")\n\n# Access by index\necho \"${pods[0]}\"           # argocd-server-abc\necho \"${pods[-1]}\"          # last element: argocd-redis-123\n\n# All elements\necho \"${pods[@]}\"           # space-separated (use in loops)\necho \"${pods[*]}\"           # same but respects IFS\n\n# Length\necho \"${#pods[@]}\"          # 3\n\n# Slice: elements 1 and 2\necho \"${pods[@]:1:2}\"\n\n# Append\npods+=(\"argocd-dex-456\")\n\n# Iterate safely (handles spaces in names)\nfor pod in \"${pods[@]}\"; do\n    echo \"Checking: $pod\"\ndone\n\n# Build array from command output — readarray is the safe way\n# (don't do: pods=($( kubectl get pods )) — breaks on spaces)\nreadarray -t pods < <(kubectl get pods -n argocd --no-headers -o custom-columns=\":metadata.name\")\n\nfor pod in \"${pods[@]}\"; do\n    restarts=$(kubectl get pod \"$pod\" -n argocd -o jsonpath='{.status.containerStatuses[0].restartCount}')\n    echo \"$pod: $restarts restarts\"\ndone\n\n# Delete element\nunset 'pods[1]'\n\n# Delete whole array\nunset pods\n```"
+    },
+    {
+      "id": "assoc-arrays",
+      "title": "Associative arrays (dictionaries)",
+      "type": "lesson",
+      "body": "**Why:** when you need to map one thing to another — namespace to cost, pod to status, env to kubecontext — associative arrays beat parallel arrays or repeated grep.\n\n```bash\n# Must declare explicitly\ndeclare -A context_map\n\ncontext_map[\"prod\"]=\"eks-prod-mach-x7kq\"\ncontext_map[\"staging\"]=\"eks-staging\"\ncontext_map[\"dev\"]=\"minikube\"\n\n# Access\necho \"${context_map[prod]}\"\n\n# Check if key exists\nif [[ -v context_map[prod] ]]; then\n    echo \"prod context: ${context_map[prod]}\"\nfi\n\n# All keys\necho \"${!context_map[@]}\"\n\n# All values\necho \"${context_map[@]}\"\n\n# Iterate\nfor env in \"${!context_map[@]}\"; do\n    echo \"$env -> ${context_map[$env]}\"\ndone\n\n# Practical: map namespaces to their ArgoCD app names\ndeclare -A ns_to_app=(\n    [\"argocd\"]=\"argocd-app\"\n    [\"monitoring\"]=\"monitoring-stack\"\n    [\"harbor\"]=\"harbor\"\n    [\"external-secrets\"]=\"external-secrets\"\n)\n\nfor ns in \"${!ns_to_app[@]}\"; do\n    app=\"${ns_to_app[$ns]}\"\n    status=$(argocd app get \"$app\" -o json 2>/dev/null | jq -r '.status.sync.status // \"Unknown\"')\n    printf \"%-20s %-30s %s\\n\" \"$ns\" \"$app\" \"$status\"\ndone\n```"
+    },
+    {
+      "id": "process-substitution",
+      "title": "Process substitution — <() and >()",
+      "type": "lesson",
+      "body": "**Why:** sometimes you need to feed command output to something that expects a file, or compare two commands' output without temp files. Process substitution gives you a named pipe on the fly.\n\n```bash\n# <(cmd) — treat cmd's output as a file\n\n# Compare two kubectl outputs side by side\ndiff <(kubectl get pods -n staging) <(kubectl get pods -n prod)\n\n# readarray from a command (you saw this above)\nreadarray -t pods < <(kubectl get pods -A --no-headers | awk '{print $2}')\n\n# while read loop without a subshell (critical difference!)\n# BAD: runs in subshell, variable changes are lost after loop\nkubectl get pods | while read -r line; do\n    count=$((count + 1))  # count is lost after the pipe\ndone\n\n# GOOD: process substitution keeps variables in current shell\ncount=0\nwhile IFS= read -r line; do\n    count=$((count + 1))\ndone < <(kubectl get pods -A --no-headers)\necho \"Total pods: $count\"  # works!\n\n# >(cmd) — feed output of a command into another command as a file\n# tee to two different processors at once\nkubectl get pods -A -o json | tee >(jq '.items | length' > /tmp/pod-count.txt) | jq -r '.items[] | .metadata.name'\n\n# Join two sorted lists\njoin <(sort file1.txt) <(sort file2.txt)\n```"
+    },
+    {
+      "id": "advanced-patterns",
+      "title": "Advanced patterns: nameref, mapfile, indirect expansion",
+      "type": "lesson",
+      "body": "```bash\n# nameref — reference another variable by name (bash 4.3+)\ndeclare -n ref=myvar\nmyvar=\"hello\"\necho \"$ref\"   # hello — ref IS myvar\nref=\"world\"\necho \"$myvar\" # world\n\n# Useful for passing array names to functions\nprocess_list() {\n    local -n items=$1   # nameref to the array passed by name\n    for item in \"${items[@]}\"; do\n        echo \"Processing: $item\"\n    done\n}\n\nmy_pods=(\"pod-a\" \"pod-b\" \"pod-c\")\nprocess_list my_pods   # pass array by name, not by value\n\n# mapfile / readarray — read lines into array\nmapfile -t namespaces < <(kubectl get namespaces -o jsonpath='{.items[*].metadata.name}' | tr ' ' '\\n')\n\n# mapfile with transformation (-C callback every N lines)\nmapfile -t -C 'echo \"Read line:\"' -c 1 lines < /etc/hosts\n\n# Indirect expansion — variable whose value is another variable's name\nENV=prod\nprod_context=\"eks-prod-mach-x7kq\"\nvar_name=\"${ENV}_context\"\necho \"${!var_name}\"   # eks-prod-mach-x7kq\n\n# Practical: select kubeconfig based on ENV variable\nfor ENV in prod staging dev; do\n    context_var=\"${ENV}_context\"\n    declare \"${ENV}_context\"=\"eks-${ENV}\"\ndone\necho \"${!prod_context}\"  # eks-prod... wait, this gets tricky fast\n# Prefer associative arrays for this case\n```"
+    },
+    {
+      "id": "cheatsheet",
+      "title": "Cheat sheet",
+      "type": "lesson",
+      "body": "```bash\n# ── Indexed arrays ──────────────────────────────\narr=(a b c)              # declare\narr+=(d)                 # append\n${arr[0]}                # first element\n${arr[-1]}               # last element\n${arr[@]}                # all elements (use in loops)\n${#arr[@]}               # length\n${arr[@]:1:2}            # slice: 2 elements starting at index 1\nreadarray -t arr < <(cmd) # safe: populate from command\nfor x in \"${arr[@]}\"; do  # safe iteration\n\n# ── Associative arrays ───────────────────────────\ndeclare -A map\nmap[key]=value\n${map[key]}              # access\n${!map[@]}               # all keys\n${map[@]}                # all values\n[[ -v map[key] ]]        # key exists?\n\n# ── Process substitution ─────────────────────────\ndiff <(cmd1) <(cmd2)     # compare two commands\nwhile read -r x; do      # loop without subshell\n  ...\ndone < <(cmd)\nreadarray -t arr < <(cmd) # populate array from cmd\n\n# ── Common mistakes ──────────────────────────────\n# WRONG: arr=($(...))    -- breaks on spaces/globs\n# RIGHT: readarray -t arr < <(...)\n\n# WRONG: cmd | while read  -- changes lost (subshell)\n# RIGHT: while read; done < <(cmd)\n\n# WRONG: for x in ${arr[@]}  -- breaks on spaces\n# RIGHT: for x in \"${arr[@]}\"\n```"
+    },
+    {
+      "id": "quiz",
+      "title": "Quiz",
+      "type": "exercise",
+      "body": "Answer these before checking — think it through first.\n\n**Q1.** What's the difference between `${arr[@]}` and `${arr[*]}`?\n\n**Q2.** Why does `cmd | while read -r line; do count=$((count+1)); done; echo $count` print 0?\n\n**Q3.** You have a script that receives an environment name (`prod`, `staging`) and needs to look up its kubecontext. What's the cleanest bash approach?\n\n**Q4.** What does `readarray -t` do that plain `arr=($(cmd))` doesn't?\n\n---\n\n**Answers:**\n\n**A1.** With double quotes: `\"${arr[@]}\"` expands each element as a separate word (safe). `\"${arr[*]}\"` joins all elements with the first char of IFS (usually a space) into one word.\n\n**A2.** The `while` loop runs in a subshell (due to the pipe). Variables modified in a subshell don't persist to the parent. Fix: `while read -r line; do ...; done < <(cmd)`.\n\n**A3.** Associative array: `declare -A ctx=([prod]=eks-prod [staging]=eks-staging)` then `${ctx[$ENV]}`.\n\n**A4.** `readarray -t` reads each line as a separate array element and strips the trailing newline (`-t`). `arr=($(cmd))` does word-splitting on spaces AND glob-expands, breaking on filenames with spaces or special chars.\n\n---\n\n**Exercise:** Try this in the terminal:\n\n```bash\n# Build a namespace health map\ndeclare -A health\n\nreadarray -t namespaces < <(kubectl get namespaces --no-headers | awk '{print $1}')\n\nfor ns in \"${namespaces[@]}\"; do\n    bad=$(kubectl get pods -n \"$ns\" --no-headers 2>/dev/null \\\n        | grep -cv Running || true)\n    health[$ns]=$bad\ndone\n\necho \"Namespace health report:\"\nfor ns in \"${!health[@]}\"; do\n    count=${health[$ns]}\n    if [[ $count -gt 0 ]]; then\n        echo \"  [$count issues] $ns\"\n    else\n        echo \"  [OK] $ns\"\n    fi\ndone | sort\n```"
+    }
+  ]
+}

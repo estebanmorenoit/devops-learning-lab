@@ -1,0 +1,40 @@
+{
+  "title": "Defensive Bash Scripting",
+  "phase": "bash",
+  "week": 1,
+  "category": "Bash",
+  "duration": "~1 hour",
+  "summary": "Make your scripts safe, predictable, and production-ready from line 1.",
+  "sections": [
+    {
+      "id": "set-flags",
+      "title": "The magic first line: set -euo pipefail",
+      "type": "lesson",
+      "body": "Every production bash script should start with this:\n\n```bash\n#!/usr/bin/env bash\nset -euo pipefail\n```\n\nWhat each flag does:\n\n- **-e** (errexit): Exit immediately if any command returns a non-zero exit code. Without this, errors are silently ignored and your script keeps running.\n- **-u** (nounset): Treat unset variables as errors. Without this, `$UNSET_VAR` silently expands to empty string — a common source of bugs.\n- **-o pipefail**: In a pipeline like `cmd1 | cmd2`, the exit code is the last command's by default. With pipefail, any failed command in the pipe fails the whole pipeline.\n\nExample without flags (dangerous):\n\n```bash\n#!/bin/bash\nKUBECONFIG_DIR=/home/esteban/.kube\nls $KUBECNFIG_DIR  # typo! expands to empty string\nrm -rf $KUBECNFIG_DIR/*  # deletes current directory contents!\n```\n\nWith -euo pipefail:\n```bash\n#!/usr/bin/env bash\nset -euo pipefail\nKUBECONFIG_DIR=/home/esteban/.kube\nls $KUBECNFIG_DIR  # bash: KUBECNFIG_DIR: unbound variable -> exits here\nrm -rf $KUBECNFIG_DIR/*  # never reached\n```"
+    },
+    {
+      "id": "quoting",
+      "title": "Quoting: the #1 source of bash bugs",
+      "type": "lesson",
+      "body": "Quoting in bash is not optional. Unquoted variables undergo word splitting and glob expansion.\n\n```bash\n# Always quote variable references\nFILE=\"my report.pdf\"\n\n# BAD: word splits on space -> rm sees two args: 'my' and 'report.pdf'\nrm $FILE\n\n# GOOD:\nrm \"$FILE\"\n```\n\nThe four quoting styles:\n\n```bash\n# 1. Double quotes: expand variables and command substitution\necho \"Hello $USER, you are in $(pwd)\"\n\n# 2. Single quotes: no expansion at all — literal string\necho 'Hello $USER'\n# Output: Hello $USER\n\n# 3. No quotes: word splitting + glob expansion (usually what you DON'T want)\nFILES=*.yaml\necho $FILES  # may expand to multiple words\n\n# 4. ${var} vs $var: identical in most cases, but braces needed for:\necho \"${var}suffix\"   # disambiguate variable name\necho \"${arr[0]}\"      # array indexing\necho \"${var:-default}\" # parameter expansion\n```\n\nParameter expansion you'll use constantly:\n\n```bash\n# Default value if unset or empty\nNAMESPACE=${NAMESPACE:-default}\nENV=${ENV:-staging}\n\n# Error if unset\nREGION=${AWS_REGION:?\"AWS_REGION must be set\"}\n\n# Substring removal (great for paths)\nFILE=/path/to/file.yaml\necho \"${FILE##*/}\"   # file.yaml  (strip longest leading match)\necho \"${FILE%.*}\"    # /path/to/file  (strip shortest trailing match)\necho \"${FILE##*.}\"   # yaml  (get extension)\n```"
+    },
+    {
+      "id": "exit-codes",
+      "title": "Exit codes as first-class values",
+      "type": "lesson",
+      "body": "Every command returns an exit code. 0 = success, anything else = failure.\n\n```bash\n# Check exit code with $?\nkubectl get pod my-pod\nif [ $? -eq 0 ]; then\n    echo \"Pod exists\"\nfi\n\n# Better: use the command directly as the condition\nif kubectl get pod my-pod &>/dev/null; then\n    echo \"Pod exists\"\nfi\n\n# Negation\nif ! kubectl get pod my-pod &>/dev/null; then\n    echo \"Pod does not exist\"\nfi\n```\n\nCommon exit code patterns in DevOps scripts:\n\n```bash\n#!/usr/bin/env bash\nset -euo pipefail\n\n# Return meaningful exit codes from functions\ncheck_cluster_ready() {\n    local cluster_name=\"$1\"\n    if ! kubectl cluster-info --context \"$cluster_name\" &>/dev/null; then\n        echo \"ERROR: Cannot connect to cluster $cluster_name\" >&2\n        return 1\n    fi\n    echo \"Cluster $cluster_name is reachable\"\n    return 0\n}\n\n# Use || to handle errors inline\ncheck_cluster_ready eks-prod-mach-x7kq || {\n    echo \"Aborting: cluster not ready\"\n    exit 1\n}\n```\n\nImportant: always write error messages to stderr (`>&2`), not stdout. This keeps your script composable in pipelines."
+    },
+    {
+      "id": "traps",
+      "title": "Traps: cleanup that always runs",
+      "type": "lesson",
+      "body": "A trap ensures cleanup happens even if your script exits early due to an error.\n\n```bash\n#!/usr/bin/env bash\nset -euo pipefail\n\n# Create a temp file\nTMPFILE=$(mktemp)\n\n# Register cleanup BEFORE doing anything that could fail\ncleanup() {\n    rm -f \"$TMPFILE\"\n    echo \"Cleanup done\" >&2\n}\ntrap cleanup EXIT  # runs on any exit, including errors\n\n# Your actual work\nkubectl get pods -o json > \"$TMPFILE\"\njq '.items[] | .metadata.name' \"$TMPFILE\"\n```\n\nMultiple signals:\n\n```bash\ntrap cleanup EXIT INT TERM\n# EXIT: normal exit or error\n# INT: Ctrl+C\n# TERM: kill signal\n```\n\nPractical pattern — save and restore kubecontext:\n\n```bash\n#!/usr/bin/env bash\nset -euo pipefail\n\nORIG_CONTEXT=$(kubectl config current-context)\n\nrestore_context() {\n    echo \"Restoring kubectl context to $ORIG_CONTEXT\" >&2\n    kubectl config use-context \"$ORIG_CONTEXT\" &>/dev/null\n}\ntrap restore_context EXIT\n\n# Switch to prod for the operation\nkubectl config use-context eks-prod-mach-x7kq\n# ... do your work ...\n# context is automatically restored on exit\n```"
+    },
+    {
+      "id": "exercise",
+      "title": "Exercise: defensive ArgoCD wait script",
+      "type": "exercise",
+      "body": "Write a script `argocd-wait.sh` that:\n\n1. Takes an app name as argument (error if not provided)\n2. Uses `set -euo pipefail`\n3. Waits until the app is Synced AND Healthy (poll every 5s)\n4. Times out after N seconds (default 300, configurable via env var)\n5. Saves kubecontext and restores it on exit\n6. Prints progress to stderr, prints \"ready\" to stdout on success\n\nStart with this skeleton:\n\n```bash\n#!/usr/bin/env bash\nset -euo pipefail\n\nAPP_NAME=${1:?\"Usage: $0 <argocd-app-name>\"}\nTIMEOUT=${TIMEOUT:-300}\nINTERVAL=5\n\n# TODO: save current context, set trap to restore it\n\n# TODO: poll argocd app status\n# Hint: argocd app get \"$APP_NAME\" -o json | jq -r '.status.sync.status + \"/\" + .status.health.status'\n\n# TODO: timeout logic\n```\n\nSample solution:\n\n```bash\n#!/usr/bin/env bash\nset -euo pipefail\n\nAPP_NAME=${1:?\"Usage: $0 <argocd-app-name>\"}\nTIMEOUT=${TIMEOUT:-300}\nINTERVAL=5\nELAPSED=0\n\nORIG_CONTEXT=$(kubectl config current-context 2>/dev/null || echo \"\")\nrestore() {\n    [ -n \"$ORIG_CONTEXT\" ] && kubectl config use-context \"$ORIG_CONTEXT\" &>/dev/null || true\n}\ntrap restore EXIT\n\necho \"Waiting for ArgoCD app: $APP_NAME (timeout: ${TIMEOUT}s)\" >&2\n\nwhile true; do\n    STATUS=$(argocd app get \"$APP_NAME\" -o json 2>/dev/null \\\n        | jq -r '.status.sync.status + \"/\" + .status.health.status')\n\n    echo \"  [${ELAPSED}s] $STATUS\" >&2\n\n    if [ \"$STATUS\" = \"Synced/Healthy\" ]; then\n        echo \"ready\"\n        exit 0\n    fi\n\n    if [ \"$ELAPSED\" -ge \"$TIMEOUT\" ]; then\n        echo \"ERROR: Timed out waiting for $APP_NAME after ${TIMEOUT}s\" >&2\n        exit 1\n    fi\n\n    sleep \"$INTERVAL\"\n    ELAPSED=$((ELAPSED + INTERVAL))\ndone\n```"
+    }
+  ]
+}

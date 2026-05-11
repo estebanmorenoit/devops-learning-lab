@@ -1,0 +1,1423 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DevOps Learning</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.min.css">
+<script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.min.js"></script>
+<style>
+/* ── Reset & base ──────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:        #0d1117;
+  --surface:   #161b22;
+  --surface2:  #1c2333;
+  --border:    #30363d;
+  --text:      #e6edf3;
+  --muted:     #7d8590;
+  --accent:    #58a6ff;
+  --green:     #3fb950;
+  --orange:    #f0883e;
+  --yellow:    #e3b341;
+  --red:       #f85149;
+  --bash-col:  #58a6ff;
+  --py-col:    #f0d060;
+  --font-mono: 'SFMono-Regular', 'Consolas', 'Liberation Mono', monospace;
+  --sidebar-w: 260px;
+}
+
+html, body { height: 100%; overflow: hidden; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  display: flex;
+  height: 100vh;
+}
+
+/* ── Sidebar ───────────────────────────────────────────────── */
+#sidebar {
+  width: var(--sidebar-w);
+  flex-shrink: 0;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.sidebar-logo {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  transition: background .15s;
+}
+.sidebar-logo:hover { background: var(--surface2); }
+
+.sidebar-logo-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.home-icon {
+  font-size: 14px;
+  opacity: .6;
+  flex-shrink: 0;
+}
+
+.sidebar-logo h1 {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  letter-spacing: -0.01em;
+  flex: 1;
+}
+
+.sidebar-logo p {
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+.progress-wrap {
+  margin-top: 8px;
+  height: 3px;
+  background: var(--border);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent), var(--green));
+  width: 0%;
+  transition: width .4s ease;
+}
+
+.progress-text {
+  font-size: 10px;
+  color: var(--muted);
+  margin-top: 5px;
+}
+
+.nav-group { padding: 2px 0; border-bottom: 1px solid var(--border); }
+
+.nav-group-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: var(--muted);
+  padding: 8px 16px 4px;
+}
+
+.nav-group-count {
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--muted);
+  opacity: .7;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 16px;
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--muted);
+  border-left: 2px solid transparent;
+  transition: all .1s;
+}
+
+.nav-item:hover { background: var(--surface2); color: var(--text); }
+.nav-item.active { background: var(--surface2); border-left-color: var(--accent); color: var(--text); }
+
+.nav-check {
+  width: 14px; height: 14px;
+  border-radius: 50%;
+  border: 1.5px solid var(--border);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 8px;
+  flex-shrink: 0;
+  transition: all .2s;
+}
+
+.nav-check.done { background: var(--green); border-color: var(--green); color: #0d1117; }
+
+.nav-week {
+  font-size: 9px;
+  padding: 1px 5px;
+  border-radius: 8px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.wk-linux         { background: #001830; color: #79c0ff; }
+.wk-git           { background: #2a1800; color: #f0883e; }
+.wk-networking    { background: #2a1a00; color: #ffa657; }
+.wk-docker        { background: #002020; color: #39d353; }
+.wk-kubernetes    { background: #001a30; color: #58a6ff; }
+.wk-cloud         { background: #2a1a00; color: #ff9500; }
+.wk-terraform     { background: #1a1a00; color: #e3b341; }
+.wk-ansible       { background: #200010; color: #ff7b72; }
+.wk-cicd          { background: #1a0a2e; color: #bc8cff; }
+.wk-helm          { background: #001a2e; color: #58a6ff; }
+.wk-gitops        { background: #0d2b1a; color: #3fb950; }
+.wk-security      { background: #2b0d0d; color: #ff7b72; }
+.wk-observability { background: #1a0a2e; color: #d2a8ff; }
+.wk-bash          { background: #1a2f4e; color: var(--bash-col); }
+.wk-bash-advanced { background: #1a2f4e; color: #79c0ff; }
+.wk-python        { background: #2d2600; color: var(--py-col); }
+.wk-python-advanced { background: #2d2600; color: #f0d060; }
+.wk-projects      { background: #0d2b1a; color: var(--green); }
+
+#nav-scroll { flex: 1; overflow-y: auto; }
+#nav-scroll::-webkit-scrollbar { width: 3px; }
+#nav-scroll::-webkit-scrollbar-thumb { background: var(--border); }
+
+/* ── Main area ─────────────────────────────────────────────── */
+#main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-width: 0;
+}
+
+/* ── Top bar ───────────────────────────────────────────────── */
+#topbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 20px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  background: var(--surface);
+  min-height: 48px;
+}
+
+.home-btn {
+  padding: 5px 10px;
+  font-size: 12px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted);
+  border-radius: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all .15s;
+  flex-shrink: 0;
+}
+.home-btn:hover { color: var(--text); border-color: var(--muted); background: var(--surface2); }
+
+.tb-badge {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+
+.tb-linux         { background: #001830; color: #79c0ff; }
+.tb-git           { background: #2a1800; color: #f0883e; }
+.tb-networking    { background: #2a1a00; color: #ffa657; }
+.tb-docker        { background: #002020; color: #39d353; }
+.tb-kubernetes    { background: #001a30; color: #58a6ff; }
+.tb-cloud         { background: #2a1a00; color: #ff9500; }
+.tb-terraform     { background: #1a1a00; color: #e3b341; }
+.tb-ansible       { background: #200010; color: #ff7b72; }
+.tb-cicd          { background: #1a0a2e; color: #bc8cff; }
+.tb-helm          { background: #001a2e; color: #58a6ff; }
+.tb-gitops        { background: #0d2b1a; color: #3fb950; }
+.tb-security      { background: #2b0d0d; color: #ff7b72; }
+.tb-observability { background: #1a0a2e; color: #d2a8ff; }
+.tb-bash          { background: #1a2f4e; color: var(--bash-col); }
+.tb-bash-advanced { background: #1a2f4e; color: #79c0ff; }
+.tb-python        { background: #2d2600; color: var(--py-col); }
+.tb-python-advanced { background: #2d2600; color: #f0d060; }
+.tb-projects      { background: #0d2b1a; color: var(--green); }
+
+.tb-title { font-size: 14px; font-weight: 600; flex: 1; }
+
+.tb-duration { font-size: 11px; color: var(--muted); }
+
+.tb-done-btn {
+  font-size: 11px;
+  padding: 5px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition: all .2s;
+  white-space: nowrap;
+}
+
+.tb-done-btn:hover  { border-color: var(--green); color: var(--green); }
+.tb-done-btn.done   { border-color: var(--green); color: var(--green); background: rgba(63,185,80,.1); }
+
+/* Layout toggle buttons */
+.layout-btns { display: flex; gap: 4px; }
+
+.layout-btn {
+  padding: 4px 8px;
+  font-size: 11px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all .1s;
+}
+
+.layout-btn.active, .layout-btn:hover { background: var(--surface2); color: var(--text); border-color: var(--muted); }
+
+/* ── Split panel ───────────────────────────────────────────── */
+#split {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+  min-height: 0;
+}
+
+/* Theory panel */
+#theory-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-width: 0;
+  border-right: 1px solid var(--border);
+}
+
+#theory-panel.hidden { display: none; }
+
+.panel-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: var(--surface2);
+  border-bottom: 1px solid var(--border);
+  font-size: 11px;
+  color: var(--muted);
+  flex-shrink: 0;
+}
+
+.panel-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+}
+
+#theory-scroll {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px 24px;
+}
+
+#theory-scroll::-webkit-scrollbar { width: 5px; }
+#theory-scroll::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+/* Terminal panel */
+#terminal-panel {
+  width: 50%;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-width: 0;
+}
+
+#terminal-panel.full-width { width: 100%; }
+#terminal-panel.hidden { display: none; }
+
+.term-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 14px;
+  background: #0d1117;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.traffic-lights { display: flex; gap: 5px; }
+.tl { width: 10px; height: 10px; border-radius: 50%; }
+.tl-r { background: #ff5f56; }
+.tl-y { background: #ffbd2e; }
+.tl-g { background: #27c93f; }
+
+.term-label {
+  font-size: 11px;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  flex: 1;
+}
+
+.term-clear-btn {
+  font-size: 10px;
+  padding: 2px 8px;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.term-clear-btn:hover { color: var(--text); }
+
+#terminal-container {
+  flex: 1;
+  background: #0d1117;
+  overflow: hidden;
+  padding: 4px;
+}
+
+.xterm { height: 100%; }
+
+/* Resizer */
+#resizer {
+  width: 4px;
+  background: var(--border);
+  cursor: col-resize;
+  flex-shrink: 0;
+  transition: background .1s;
+}
+
+#resizer:hover { background: var(--accent); }
+
+/* ── Theory content styles ──────────────────────────────────── */
+.lesson-summary {
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.65;
+  padding: 12px 14px;
+  background: var(--surface2);
+  border-radius: 6px;
+  border-left: 2px solid var(--accent);
+  margin-bottom: 24px;
+}
+
+.section-wrap { margin-bottom: 32px; }
+
+.section-hdr {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.sec-type {
+  font-size: 9px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 8px;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+}
+
+.sec-lesson   { background: #1a2f4e; color: #79c0ff; }
+.sec-exercise { background: #2a1800; color: var(--orange); }
+
+.section-title-text { font-size: 15px; font-weight: 600; }
+
+/* Run in terminal button */
+.run-btn {
+  margin-left: auto;
+  font-size: 10px;
+  padding: 3px 10px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted);
+  border-radius: 4px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all .15s;
+  display: none;
+}
+
+.run-btn:hover { border-color: var(--green); color: var(--green); }
+.sec-exercise .run-btn { display: inline-block; }
+
+.lesson-body { font-size: 13px; line-height: 1.75; color: #c9d1d9; }
+.lesson-body p { margin-bottom: 12px; }
+.lesson-body h1, .lesson-body h2, .lesson-body h3 { color: var(--text); font-weight: 600; margin: 18px 0 8px; }
+.lesson-body h1 { font-size: 18px; }
+.lesson-body h2 { font-size: 15px; }
+.lesson-body h3 { font-size: 14px; }
+.lesson-body ul, .lesson-body ol { padding-left: 18px; margin-bottom: 12px; }
+.lesson-body li { margin-bottom: 3px; }
+.lesson-body strong { color: var(--text); font-weight: 600; }
+.lesson-body em { font-style: italic; color: #c9d1d9; }
+.lesson-body hr { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
+
+.lesson-body code {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 1px 5px;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: #79c0ff;
+}
+
+.lesson-body pre {
+  background: #0d1117;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 14px;
+  overflow-x: auto;
+  margin-bottom: 14px;
+  position: relative;
+}
+
+.lesson-body pre code {
+  background: none; border: none; padding: 0;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: #e6edf3;
+  line-height: 1.6;
+}
+
+.code-actions {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: flex;
+  gap: 4px;
+}
+
+.copy-btn, .run-in-term-btn {
+  font-size: 10px;
+  padding: 2px 7px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  color: var(--muted);
+  cursor: pointer;
+  transition: all .15s;
+}
+
+.copy-btn:hover        { color: var(--text); }
+.run-in-term-btn       { color: var(--green); border-color: rgba(63,185,80,.3); }
+.run-in-term-btn:hover { background: rgba(63,185,80,.1); }
+.copy-btn.copied       { color: var(--green); border-color: var(--green); }
+
+.section-divider { border: none; border-top: 1px solid var(--border); margin: 28px 0; }
+
+/* Syntax colours */
+.kw  { color: #ff7b72; }
+.str { color: #a5d6ff; }
+.cmt { color: #7d8590; font-style: italic; }
+.fn  { color: #d2a8ff; }
+.num { color: #79c0ff; }
+.blt { color: #ffa657; }
+
+/* ── Dashboard screen ──────────────────────────────────────── */
+#dashboard-screen { padding: 20px 24px; }
+
+.dash-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+
+.dash-title { font-size: 20px; font-weight: 700; }
+.dash-sub   { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+.dash-total {
+  text-align: right;
+}
+
+.dash-total-num {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--accent);
+  line-height: 1;
+}
+
+.dash-total-label {
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+.dash-bar-wrap {
+  height: 4px;
+  background: var(--border);
+  border-radius: 2px;
+  overflow: hidden;
+  margin-bottom: 20px;
+}
+
+.dash-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent), var(--green));
+  transition: width .4s ease;
+}
+
+.dash-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.dash-card {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px 16px;
+  cursor: pointer;
+  transition: border-color .15s;
+}
+
+.dash-card:hover { border-color: var(--muted); }
+
+.dash-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.dash-card-name {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.dash-card-count {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.dash-card-count.complete { color: var(--green); }
+
+.dash-card-bar-wrap {
+  height: 3px;
+  background: var(--border);
+  border-radius: 2px;
+  overflow: hidden;
+  margin-bottom: 10px;
+}
+
+.dash-card-bar-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width .3s ease;
+}
+
+.dash-card-lessons {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-bottom: 10px;
+}
+
+.dash-lesson-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--muted);
+  padding: 2px 0;
+}
+
+.dash-lesson-row.done { color: var(--text); }
+
+.dash-lesson-dot {
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  border: 1.5px solid var(--border);
+  flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 7px;
+  color: transparent;
+}
+
+.dash-lesson-dot.done {
+  background: var(--green);
+  border-color: var(--green);
+  color: #0d1117;
+}
+
+.dash-lesson-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dash-card-footer {
+  margin-top: 4px;
+}
+
+.dash-continue-btn {
+  width: 100%;
+  padding: 6px 0;
+  font-size: 11px;
+  font-weight: 600;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  color: var(--muted);
+  cursor: pointer;
+  transition: all .15s;
+}
+
+.dash-continue-btn:hover { color: var(--text); border-color: var(--muted); background: var(--bg); }
+.dash-continue-btn.start { border-color: var(--accent); color: var(--accent); }
+.dash-continue-btn.start:hover { background: rgba(88,166,255,.1); }
+.dash-continue-btn.review { border-color: var(--green); color: var(--green); }
+.dash-continue-btn.review:hover { background: rgba(63,185,80,.1); }
+
+/* Connection status */
+#conn-status {
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: rgba(63,185,80,.15);
+  color: var(--green);
+  border: 1px solid rgba(63,185,80,.3);
+}
+
+#conn-status.disconnected {
+  background: rgba(248,81,73,.15);
+  color: var(--red);
+  border-color: rgba(248,81,73,.3);
+}
+</style>
+</head>
+<body>
+
+<!-- Sidebar -->
+<aside id="sidebar">
+  <div class="sidebar-logo" onclick="showDashboard()" title="Go to dashboard">
+    <div class="sidebar-logo-row">
+      <span class="home-icon">⌂</span>
+      <h1>DevOps Learning</h1>
+    </div>
+    <p>Bash · Python · Your stack</p>
+    <div class="progress-wrap">
+      <div class="progress-fill" id="prog-fill"></div>
+    </div>
+    <div class="progress-text" id="prog-text">Loading…</div>
+  </div>
+  <div id="nav-scroll"></div>
+</aside>
+
+<!-- Main -->
+<div id="main">
+
+  <!-- Topbar -->
+  <div id="topbar">
+    <button class="home-btn" onclick="showDashboard()" title="Dashboard">⌂ Home</button>
+    <span class="tb-badge" id="tb-badge" style="display:none"></span>
+    <span class="tb-title" id="tb-title">DevOps Learning</span>
+    <span class="tb-duration" id="tb-duration"></span>
+    <div class="layout-btns">
+      <button class="layout-btn active" id="btn-split"   onclick="setLayout('split')"   title="Split view">⫴ Split</button>
+      <button class="layout-btn"        id="btn-theory"  onclick="setLayout('theory')"  title="Theory only">☰ Theory</button>
+      <button class="layout-btn"        id="btn-terminal" onclick="setLayout('terminal')" title="Terminal only">⬛ Terminal</button>
+    </div>
+    <button class="tb-done-btn" id="done-btn" style="display:none" onclick="toggleDone()">Mark complete</button>
+  </div>
+
+  <!-- Split panel -->
+  <div id="split">
+
+    <!-- Theory -->
+    <div id="theory-panel">
+      <div class="panel-header">
+        <div class="panel-dot" style="background:#58a6ff"></div>
+        <span id="panel-header-label">Dashboard</span>
+      </div>
+      <div id="theory-scroll">
+        <div id="dashboard-screen">
+          <!-- rendered by showDashboard() -->
+          <div style="color:var(--muted);font-size:13px">Loading…</div>
+        </div>
+        <div id="lesson-content" style="display:none"></div>
+      </div>
+    </div>
+
+    <!-- Resizer -->
+    <div id="resizer"></div>
+
+    <!-- Terminal -->
+    <div id="terminal-panel">
+      <div class="term-header">
+        <div class="traffic-lights">
+          <div class="tl tl-r"></div>
+          <div class="tl tl-y"></div>
+          <div class="tl tl-g"></div>
+        </div>
+        <span class="term-label">sandbox — bash</span>
+        <span id="cluster-status" style="font-size:11px;color:var(--orange)">● k3s starting…</span>
+        <span id="conn-status">● connected</span>
+        <button class="term-clear-btn" onclick="clearTerm()">clear</button>
+      </div>
+      <div id="terminal-container"></div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+// ── Sections definition (controls sidebar grouping & dashboard cards) ────────
+const SECTIONS = [
+  { id: "linux",        label: "Linux & OS",     color: "#79c0ff", phases: ["linux"] },
+  { id: "git",          label: "Git",            color: "#f0883e", phases: ["git"] },
+  { id: "networking",   label: "Networking",     color: "#ffa657", phases: ["networking"] },
+  { id: "docker",       label: "Docker",         color: "#39d353", phases: ["docker"] },
+  { id: "kubernetes",   label: "Kubernetes",     color: "#58a6ff", phases: ["kubernetes"] },
+  { id: "cloud",        label: "Cloud / AWS",    color: "#ff9500", phases: ["cloud"] },
+  { id: "iac",          label: "IaC",            color: "#e3b341", phases: ["terraform", "ansible"] },
+  { id: "cicd",         label: "CI/CD & Helm",   color: "#bc8cff", phases: ["cicd", "helm"] },
+  { id: "gitops",       label: "GitOps",         color: "#3fb950", phases: ["gitops"] },
+  { id: "security",     label: "Security",       color: "#ff7b72", phases: ["security"] },
+  { id: "observability",label: "Observability",  color: "#d2a8ff", phases: ["observability"] },
+  { id: "bash",         label: "Bash",           color: "#79c0ff", phases: ["bash", "bash-advanced"] },
+  { id: "python",       label: "Python",         color: "#f0d060", phases: ["python", "python-advanced"] },
+  { id: "projects",     label: "Projects",       color: "#56d364", phases: ["projects"] },
+];
+
+function sectionFor(phase) {
+  return SECTIONS.find(s => s.phases.includes(phase));
+}
+
+// ── State ──────────────────────────────────────────────────────────────────
+let lessons = [];
+let currentKey = null;
+let progress = {};
+let ws = null;
+let term = null;
+let fitAddon = null;
+let layout = "split";
+let wsReady = false;
+let cmdQueue = [];
+let heartbeatTimer = null;
+let showingDashboard = true;
+
+const API = ""; // relative URLs — proxied by nginx
+
+// ── xterm.js setup ────────────────────────────────────────────────────────
+function initTerminal() {
+  term = new Terminal({
+    theme: {
+      background: "#0d1117",
+      foreground: "#e6edf3",
+      cursor: "#e6edf3",
+      selectionBackground: "#264f78",
+      black: "#0d1117", brightBlack: "#7d8590",
+      red: "#f85149",   brightRed: "#f85149",
+      green: "#3fb950", brightGreen: "#56d364",
+      yellow: "#e3b341",brightYellow: "#f0d060",
+      blue: "#58a6ff",  brightBlue: "#79c0ff",
+      magenta: "#d2a8ff",brightMagenta: "#d2a8ff",
+      cyan: "#39d353",  brightCyan: "#56d364",
+      white: "#e6edf3", brightWhite: "#ffffff",
+    },
+    fontFamily: "'SFMono-Regular', 'Consolas', 'Liberation Mono', monospace",
+    fontSize: 13,
+    lineHeight: 1.4,
+    cursorBlink: true,
+    cursorStyle: "block",
+    allowTransparency: true,
+    scrollback: 2000,
+  });
+
+  fitAddon = new FitAddon.FitAddon();
+  term.loadAddon(fitAddon);
+  term.open(document.getElementById("terminal-container"));
+
+  term.onResize(({ cols, rows }) => {
+    if (wsReady && ws) ws.send(JSON.stringify({ type: "resize", cols, rows }));
+  });
+
+  setTimeout(() => { fitAddon.fit(); }, 50);
+
+  term.onData((data) => { sendCommand(data); });
+}
+
+function clearTerm() {
+  if (term) term.clear();
+  sendCommand("\x0c");
+}
+
+// ── WebSocket ──────────────────────────────────────────────────────────────
+function connectWS() {
+  const sessionId = Math.random().toString(36).slice(2);
+  const proto = location.protocol === "https:" ? "wss" : "ws";
+  const url = `${proto}://${location.host}/ws/terminal/${sessionId}`;
+  ws = new WebSocket(url);
+
+  ws.onopen = () => {
+    wsReady = true;
+    updateConnStatus(true);
+    while (cmdQueue.length) sendCommand(cmdQueue.shift());
+    // Heartbeat: keep connection alive and detect stale sockets
+    if (heartbeatTimer) clearInterval(heartbeatTimer);
+    heartbeatTimer = setInterval(() => {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: "ping" }));
+      }
+    }, 25000);
+  };
+
+  ws.onmessage = (evt) => {
+    const msg = JSON.parse(evt.data);
+    if (msg.type === "output") term.write(msg.data.replace(/\n/g, "\r\n"));
+    // pong responses are intentionally ignored
+  };
+
+  ws.onclose = () => {
+    wsReady = false;
+    updateConnStatus(false);
+    if (heartbeatTimer) { clearInterval(heartbeatTimer); heartbeatTimer = null; }
+    setTimeout(connectWS, 2000);
+  };
+
+  ws.onerror = () => { wsReady = false; updateConnStatus(false); };
+}
+
+function sendCommand(data) {
+  if (!wsReady) { cmdQueue.push(data); return; }
+  ws.send(JSON.stringify({ type: "input", data }));
+}
+
+function runInTerminal(code, lang) {
+  setLayout("split");
+  if (term) term.focus();
+  // Determine runner: use explicit lang hint, fall back to content heuristic
+  let runner = "bash";
+  if (lang === "python") {
+    runner = "python3";
+  } else if (!lang || lang === "bash" || lang === "sh") {
+    if (code.trim().startsWith("#!/usr/bin/env python") ||
+        /^(import |from |def |class |if __name__)/.test(code.trim())) {
+      runner = "python3";
+    }
+  }
+  const ext = runner === "python3" ? "py" : "sh";
+  const fname = `/tmp/run_${Date.now()}.${ext}`;
+  // Use a heredoc to avoid quoting issues with arbitrary code content
+  const delimiter = `EOF_${Math.random().toString(36).slice(2, 8)}`;
+  const writeCmd = `cat > ${fname} << '${delimiter}'\n${code}\n${delimiter}\n${runner} ${fname}\r`;
+  sendCommand(writeCmd);
+}
+
+function updateConnStatus(ok) {
+  const el = document.getElementById("conn-status");
+  el.textContent = ok ? "● connected" : "● disconnected";
+  el.className = ok ? "" : "disconnected";
+}
+
+// ── Layout ──────────────────────────────────────────────────────────────────
+function setLayout(mode) {
+  layout = mode;
+  const theory = document.getElementById("theory-panel");
+  const terminal = document.getElementById("terminal-panel");
+  const resizer = document.getElementById("resizer");
+  ["btn-split","btn-theory","btn-terminal"].forEach(id => {
+    document.getElementById(id).classList.remove("active");
+  });
+  document.getElementById("btn-" + mode).classList.add("active");
+
+  if (mode === "split") {
+    theory.classList.remove("hidden");
+    terminal.classList.remove("hidden", "full-width");
+    resizer.style.display = "";
+    terminal.style.width = "50%";
+  } else if (mode === "theory") {
+    theory.classList.remove("hidden");
+    terminal.classList.add("hidden");
+    resizer.style.display = "none";
+  } else {
+    theory.classList.add("hidden");
+    terminal.classList.remove("hidden");
+    terminal.classList.add("full-width");
+    terminal.style.width = "100%";
+    resizer.style.display = "none";
+  }
+  setTimeout(() => { if (fitAddon) fitAddon.fit(); }, 50);
+}
+
+// ── Resizer drag ─────────────────────────────────────────────────────────
+(function() {
+  const resizer = document.getElementById("resizer");
+  let dragging = false, startX = 0, startW = 0;
+  resizer.addEventListener("mousedown", e => {
+    dragging = true; startX = e.clientX;
+    startW = document.getElementById("terminal-panel").offsetWidth;
+    document.body.style.userSelect = "none";
+  });
+  document.addEventListener("mousemove", e => {
+    if (!dragging) return;
+    const split = document.getElementById("split");
+    const delta = startX - e.clientX;
+    const newW = Math.min(Math.max(startW + delta, 280), split.offsetWidth - 280);
+    document.getElementById("terminal-panel").style.width = newW + "px";
+    if (fitAddon) fitAddon.fit();
+  });
+  document.addEventListener("mouseup", () => {
+    dragging = false;
+    document.body.style.userSelect = "";
+  });
+})();
+
+// ── API helpers ─────────────────────────────────────────────────────────
+async function apiFetch(path, opts) {
+  const r = await fetch(path, opts);
+  return r.json();
+}
+
+// ── Progress ─────────────────────────────────────────────────────────────
+async function loadProgress() {
+  progress = await apiFetch("/api/progress");
+}
+
+async function saveProgress(key, done) {
+  progress[key] = done;
+  await apiFetch(`/api/progress/${key}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ done }),
+  });
+  renderNav();
+  if (showingDashboard) showDashboard();
+}
+
+function toggleDone() {
+  if (!currentKey) return;
+  saveProgress(currentKey, !progress[currentKey]);
+  renderDoneBtn();
+}
+
+function renderDoneBtn() {
+  const btn = document.getElementById("done-btn");
+  const done = progress[currentKey];
+  btn.textContent = done ? "✓ Completed" : "Mark complete";
+  btn.className = "tb-done-btn" + (done ? " done" : "");
+}
+
+// ── Sidebar nav ────────────────────────────────────────────────────────────
+async function loadLessons() {
+  await loadProgress();
+  lessons = await apiFetch("/api/lessons");
+
+  try {
+    const status = await apiFetch("/api/cluster/status");
+    const el = document.getElementById("cluster-status");
+    if (el) {
+      if (status.ready) {
+        el.textContent = `● k3s ready (${status.nodes?.length || 1} node)`;
+        el.style.color = "var(--green)";
+      } else {
+        el.textContent = "● k3s starting…";
+        el.style.color = "var(--orange)";
+        setTimeout(loadLessons, 5000);
+      }
+    }
+  } catch(e) {}
+
+  renderNav();
+  showDashboard();
+}
+
+function renderNav() {
+  const done_count = Object.values(progress).filter(Boolean).length;
+  const total = lessons.length;
+  document.getElementById("prog-fill").style.width = total ? `${done_count/total*100}%` : "0%";
+  document.getElementById("prog-text").textContent = `${done_count} of ${total} complete`;
+
+  const container = document.getElementById("nav-scroll");
+  container.innerHTML = "";
+
+  // Build per-section lesson lists, preserving API order
+  const sectionLessons = new Map(SECTIONS.map(s => [s.id, []]));
+  for (const l of lessons) {
+    const sec = sectionFor(l.phase);
+    if (sec) sectionLessons.get(sec.id).push(l);
+  }
+
+  for (const sec of SECTIONS) {
+    const items = sectionLessons.get(sec.id);
+    if (!items || !items.length) continue;
+
+    const doneSec = items.filter(l => progress[l.key]).length;
+
+    const grp = document.createElement("div");
+    grp.className = "nav-group";
+
+    const lbl = document.createElement("div");
+    lbl.className = "nav-group-label";
+    lbl.innerHTML = `
+      <span style="color:${sec.color}">${sec.label}</span>
+      <span class="nav-group-count">${doneSec}/${items.length}</span>
+    `;
+    grp.appendChild(lbl);
+
+    for (const l of items) {
+      const item = document.createElement("div");
+      item.className = "nav-item" + (!showingDashboard && currentKey === l.key ? " active" : "");
+      item.innerHTML = `
+        <div class="nav-check ${progress[l.key] ? 'done' : ''}">${progress[l.key] ? '✓' : ''}</div>
+        <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${l.title}</span>
+        <span class="nav-week wk-${l.phase}">W${l.week}</span>
+      `;
+      item.addEventListener("click", () => loadLesson(l.key));
+      grp.appendChild(item);
+    }
+    container.appendChild(grp);
+  }
+}
+
+// ── Dashboard ─────────────────────────────────────────────────────────────
+function showDashboard() {
+  showingDashboard = true;
+  currentKey = null;
+
+  // Topbar
+  document.getElementById("tb-badge").style.display = "none";
+  document.getElementById("tb-title").textContent = "DevOps Learning";
+  document.getElementById("tb-duration").textContent = "";
+  document.getElementById("done-btn").style.display = "none";
+  document.getElementById("panel-header-label").textContent = "Dashboard";
+
+  renderNav();
+
+  const done_count = Object.values(progress).filter(Boolean).length;
+  const total = lessons.length;
+  const pct = total ? Math.round(done_count / total * 100) : 0;
+
+  // Build section lesson lists
+  const sectionLessons = new Map(SECTIONS.map(s => [s.id, []]));
+  for (const l of lessons) {
+    const sec = sectionFor(l.phase);
+    if (sec) sectionLessons.get(sec.id).push(l);
+  }
+
+  // Find overall next lesson
+  const nextLesson = lessons.find(l => !progress[l.key]);
+
+  document.getElementById("dashboard-screen").style.display = "";
+  document.getElementById("lesson-content").style.display = "none";
+
+  const screen = document.getElementById("dashboard-screen");
+  screen.innerHTML = `
+    <div class="dash-header">
+      <div>
+        <div class="dash-title">DevOps Learning Lab</div>
+        <div class="dash-sub">Linux · Git · Networking · Docker · Kubernetes · Cloud · CI/CD · IaC · GitOps · Observability</div>
+      </div>
+      <div class="dash-total">
+        <div class="dash-total-num">${pct}%</div>
+        <div class="dash-total-label">${done_count} / ${total} lessons</div>
+      </div>
+    </div>
+    <div class="dash-bar-wrap">
+      <div class="dash-bar-fill" style="width:${pct}%"></div>
+    </div>
+    <div class="dash-grid" id="dash-grid"></div>
+    ${nextLesson ? `<button class="dash-continue-btn start" style="max-width:220px;padding:8px 20px;font-size:12px" onclick="loadLesson('${nextLesson.key}')">
+      ${done_count === 0 ? 'Start Week 1 →' : 'Continue →'}
+    </button>` : `<div style="font-size:13px;color:var(--green);font-weight:600">🎉 All lessons complete!</div>`}
+  `;
+
+  const grid = document.getElementById("dash-grid");
+  for (const sec of SECTIONS) {
+    const items = sectionLessons.get(sec.id);
+    if (!items || !items.length) continue;
+
+    const doneSec = items.filter(l => progress[l.key]).length;
+    const secPct = Math.round(doneSec / items.length * 100);
+    const allDone = doneSec === items.length;
+    const firstIncomplete = items.find(l => !progress[l.key]);
+
+    const card = document.createElement("div");
+    card.className = "dash-card";
+    card.innerHTML = `
+      <div class="dash-card-header">
+        <div class="dash-card-name" style="color:${sec.color}">${sec.label}</div>
+        <div class="dash-card-count ${allDone ? 'complete' : ''}">${doneSec}/${items.length}</div>
+      </div>
+      <div class="dash-card-bar-wrap">
+        <div class="dash-card-bar-fill" style="width:${secPct}%;background:${sec.color};opacity:${secPct===100?1:.7}"></div>
+      </div>
+      <div class="dash-card-lessons">
+        ${items.map(l => `
+          <div class="dash-lesson-row ${progress[l.key] ? 'done' : ''}" onclick="loadLesson('${l.key}')" style="cursor:pointer">
+            <div class="dash-lesson-dot ${progress[l.key] ? 'done' : ''}">${progress[l.key] ? '✓' : ''}</div>
+            <span class="dash-lesson-name">${l.title}</span>
+          </div>
+        `).join("")}
+      </div>
+      <div class="dash-card-footer">
+        <button class="dash-continue-btn ${allDone ? 'review' : 'start'}"
+          onclick="loadLesson('${allDone ? items[0].key : firstIncomplete?.key}')">
+          ${allDone ? 'Review' : doneSec > 0 ? 'Continue' : 'Start'} →
+        </button>
+      </div>
+    `;
+    grid.appendChild(card);
+  }
+
+  document.getElementById("theory-scroll").scrollTop = 0;
+}
+
+// ── Load lesson ────────────────────────────────────────────────────────────
+async function loadLesson(key) {
+  if (!key) return;
+  showingDashboard = false;
+  currentKey = key;
+  renderNav();
+
+  const lesson = await apiFetch(`/api/lessons/${key}`);
+  if (!lesson || lesson.detail) return;
+
+  // Topbar
+  const badge = document.getElementById("tb-badge");
+  badge.style.display = "";
+  badge.className = `tb-badge tb-${lesson.phase}`;
+  badge.textContent = lesson.category;
+  document.getElementById("tb-title").textContent = lesson.title;
+  document.getElementById("tb-duration").textContent = lesson.duration || "";
+  document.getElementById("done-btn").style.display = "";
+  document.getElementById("panel-header-label").textContent = "Theory & Examples";
+  renderDoneBtn();
+
+  // Show lesson content, hide dashboard
+  document.getElementById("dashboard-screen").style.display = "none";
+  const lessonEl = document.getElementById("lesson-content");
+  lessonEl.style.display = "";
+  lessonEl.innerHTML = "";
+
+  const summary = document.createElement("div");
+  summary.className = "lesson-summary";
+  summary.textContent = lesson.summary;
+  lessonEl.appendChild(summary);
+
+  for (let i = 0; i < lesson.sections.length; i++) {
+    const sec = lesson.sections[i];
+    const wrap = document.createElement("div");
+    wrap.className = "section-wrap";
+
+    const hdr = document.createElement("div");
+    hdr.className = "section-hdr";
+    hdr.innerHTML = `
+      <span class="sec-type sec-${sec.type}">${sec.type}</span>
+      <span class="section-title-text">${sec.title}</span>
+    `;
+    wrap.appendChild(hdr);
+
+    const body = document.createElement("div");
+    body.className = "lesson-body";
+    body.innerHTML = renderMD(sec.body);
+    wrap.appendChild(body);
+    lessonEl.appendChild(wrap);
+
+    if (i < lesson.sections.length - 1) {
+      const hr = document.createElement("hr");
+      hr.className = "section-divider";
+      lessonEl.appendChild(hr);
+    }
+  }
+
+  document.getElementById("theory-scroll").scrollTop = 0;
+}
+
+// ── Markdown renderer ──────────────────────────────────────────────────────
+function renderMD(text) {
+  const lines = text.split("\n");
+  let html = "";
+  let i = 0;
+  let paraLines = [];
+
+  function flushPara() {
+    if (paraLines.length) {
+      html += `<p>${paraLines.map(inline).join(" ")}</p>`;
+      paraLines = [];
+    }
+  }
+
+  while (i < lines.length) {
+    const line = lines[i];
+
+    // Fenced code block
+    if (line.startsWith("```")) {
+      flushPara();
+      const lang = line.slice(3).trim();
+      const codeLines = [];
+      i++;
+      while (i < lines.length && !lines[i].startsWith("```")) { codeLines.push(lines[i]); i++; }
+      const raw = codeLines.join("\n");
+      const escaped = raw.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+      const hl = highlight(escaped, lang);
+      const runnable = lang === "bash" || lang === "python" || lang === "sh";
+      const runBtn = runnable
+        ? `<button class="run-in-term-btn" onclick="runInTerminal(this.dataset.code,${JSON.stringify(lang)})" data-code="${raw.replace(/"/g,'&quot;')}">▶ run</button>`
+        : "";
+      html += `<pre><div class="code-actions"><button class="copy-btn" onclick="copyCode(this)">copy</button>${runBtn}</div><code class="lang-${lang}">${hl}</code></pre>`;
+      i++;
+      continue;
+    }
+
+    // Headings
+    if (line.startsWith("### ")) { flushPara(); html += `<h3>${inline(line.slice(4))}</h3>`; i++; continue; }
+    if (line.startsWith("## "))  { flushPara(); html += `<h2>${inline(line.slice(3))}</h2>`; i++; continue; }
+    if (line.startsWith("# "))   { flushPara(); html += `<h1>${inline(line.slice(2))}</h1>`; i++; continue; }
+
+    // Horizontal rule
+    if (/^---+$/.test(line.trim())) { flushPara(); html += "<hr>"; i++; continue; }
+
+    // Unordered list
+    if (line.startsWith("- ")) {
+      flushPara();
+      html += "<ul>";
+      while (i < lines.length && lines[i].startsWith("- ")) {
+        html += `<li>${inline(lines[i].slice(2))}</li>`;
+        i++;
+      }
+      html += "</ul>";
+      continue;
+    }
+
+    // Ordered list
+    if (/^\d+\. /.test(line)) {
+      flushPara();
+      html += "<ol>";
+      while (i < lines.length && /^\d+\. /.test(lines[i])) {
+        html += `<li>${inline(lines[i].replace(/^\d+\. /, ""))}</li>`;
+        i++;
+      }
+      html += "</ol>";
+      continue;
+    }
+
+    // Blank line flushes the paragraph
+    if (line.trim() === "") {
+      flushPara();
+      i++;
+      continue;
+    }
+
+    // Accumulate paragraph text
+    paraLines.push(line);
+    i++;
+  }
+  flushPara();
+  return html;
+}
+
+function esc(s) { return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+
+function inline(t) {
+  return esc(t)
+    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+    .replace(/\*([^*]+)\*/g, "<em>$1</em>")
+    .replace(/`([^`]+)`/g, "<code>$1</code>");
+}
+
+function highlight(code, lang) {
+  if (lang === "bash" || lang === "sh") return hlBash(code);
+  if (lang === "python")                return hlPython(code);
+  if (lang === "yaml")                  return hlYaml(code);
+  if (lang === "nginx")                 return hlNginx(code);
+  if (lang === "json")                  return hlJson(code);
+  if (lang === "ini")                   return hlIni(code);
+  return code;
+}
+
+function hlBash(c) {
+  return c
+    .replace(/(#[^!].*)$/gm, '<span class="cmt">$1</span>')
+    .replace(/\b(if|then|else|elif|fi|for|while|do|done|case|esac|function|in|return|local|set|trap|until|break|continue|shift|export|readonly|source|declare|unset|true|false)\b/g, '<span class="kw">$1</span>')
+    .replace(/(&quot;[^&]*?&quot;|&#39;[^&]*?&#39;)/g, '<span class="str">$1</span>')
+    .replace(/\b(kubectl|k9s|aws|eksctl|argocd|terraform|helm|docker|docker-compose|jq|curl|wget|grep|awk|sed|python3|pip3|ansible|ansible-playbook|ansible-galaxy|vault|kubeseal|git|make|systemctl|journalctl|ss|dig|nc|nmap|openssl|htop|top|ps|kill|pkill|chmod|chown|find|xargs|sort|uniq|wc|tee|tr|cut|base64|sha256sum)\b/g, '<span class="blt">$1</span>');
+}
+
+function hlPython(c) {
+  return c
+    .replace(/(#.*)$/gm, '<span class="cmt">$1</span>')
+    .replace(/\b(def|class|import|from|return|if|elif|else|for|while|with|try|except|finally|raise|as|in|not|and|or|is|None|True|False|pass|break|continue|yield|lambda|async|await|global|nonlocal|assert|del)\b/g, '<span class="kw">$1</span>')
+    .replace(/\b(print|len|str|int|float|list|dict|set|open|range|enumerate|zip|sorted|isinstance|type|vars|dir|hasattr|getattr|setattr|super|property|staticmethod|classmethod)\b/g, '<span class="blt">$1</span>')
+    .replace(/(&quot;[^&]*?&quot;|&#39;[^&]*?&#39;)/g, '<span class="str">$1</span>')
+    .replace(/\bdef (\w+)/g, 'def <span class="fn">$1</span>')
+    .replace(/\bclass (\w+)/g, 'class <span class="fn">$1</span>')
+    .replace(/\b(\d+\.?\d*)\b/g, '<span class="num">$1</span>');
+}
+
+function hlYaml(c) {
+  return c
+    .replace(/(#.*)$/gm, '<span class="cmt">$1</span>')
+    .replace(/^(\s*)([\w\-\.]+)(\s*:)/gm, '$1<span class="blt">$2</span>$3')
+    .replace(/:\s*(&quot;[^&]*?&quot;)/g, ': <span class="str">$1</span>')
+    .replace(/:\s*(true|false|null)\b/g, ': <span class="kw">$1</span>');
+}
+
+function hlNginx(c) {
+  return c
+    .replace(/(#.*)$/gm, '<span class="cmt">$1</span>')
+    .replace(/\b(server|location|upstream|http|events|stream|mail)\b(\s*\{)/g, '<span class="kw">$1</span>$2')
+    .replace(/\b(listen|server_name|root|index|proxy_pass|proxy_set_header|proxy_cache|proxy_cache_valid|ssl_certificate|ssl_certificate_key|ssl_protocols|return|rewrite|include|worker_processes|worker_connections|keepalive_timeout|sendfile|gzip|add_header|try_files|error_page|access_log|error_log|default_type)\b/g, '<span class="blt">$1</span>')
+    .replace(/(&quot;[^&]*?&quot;)/g, '<span class="str">$1</span>');
+}
+
+function hlJson(c) {
+  return c
+    .replace(/(&quot;[^&]*?&quot;)\s*:/g, '<span class="blt">$1</span>:')
+    .replace(/:\s*(&quot;[^&]*?&quot;)/g, ': <span class="str">$1</span>')
+    .replace(/:\s*(true|false|null)\b/g, ': <span class="kw">$1</span>')
+    .replace(/:\s*(-?\d+\.?\d*)/g, ': <span class="num">$1</span>');
+}
+
+function hlIni(c) {
+  return c
+    .replace(/(#.*|;.*)$/gm, '<span class="cmt">$1</span>')
+    .replace(/^\[([^\]]+)\]/gm, '[<span class="fn">$1</span>]')
+    .replace(/^([\w\-]+)\s*=/gm, '<span class="blt">$1</span>=');
+}
+
+function copyCode(btn) {
+  const code = btn.closest("pre").querySelector("code").innerText;
+  navigator.clipboard.writeText(code).then(() => {
+    const prev = btn.textContent;
+    btn.textContent = "✓ copied";
+    btn.classList.add("copied");
+    setTimeout(() => { btn.textContent = prev; btn.classList.remove("copied"); }, 1500);
+  }).catch(() => {
+    // Fallback for environments without clipboard API
+    const ta = document.createElement("textarea");
+    ta.value = code;
+    ta.style.position = "fixed"; ta.style.opacity = "0";
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand("copy");
+    document.body.removeChild(ta);
+    btn.textContent = "✓ copied";
+    btn.classList.add("copied");
+    setTimeout(() => { btn.textContent = "copy"; btn.classList.remove("copied"); }, 1500);
+  });
+}
+
+// ── Resize observer ────────────────────────────────────────────────────────
+const resizeObs = new ResizeObserver(() => { if (fitAddon) fitAddon.fit(); });
+resizeObs.observe(document.getElementById("terminal-container"));
+
+// ── Boot ───────────────────────────────────────────────────────────────────
+initTerminal();
+connectWS();
+loadLessons();
+</script>
+</body>
+</html>

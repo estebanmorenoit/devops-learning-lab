@@ -1,0 +1,28 @@
+# Runtime data (generated at cluster startup — never commit)
+data/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+.pytest_cache/
+
+# Shell artifact (mistyped glob; directory can be deleted)
+{backend/
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/settings.json
+*.swp
+*.swo
+
+# Claude Code session data
+.claude/

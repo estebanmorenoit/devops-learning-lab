@@ -1,0 +1,292 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="860" height="710" viewBox="0 0 860 710">
+  <defs>
+    <marker id="ab" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+      <polygon points="0 0,8 3,0 6" fill="#58a6ff"/>
+    </marker>
+    <marker id="ag" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+      <polygon points="0 0,8 3,0 6" fill="#3fb950"/>
+    </marker>
+    <marker id="ao" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+      <polygon points="0 0,8 3,0 6" fill="#f0883e"/>
+    </marker>
+    <marker id="ap" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+      <polygon points="0 0,8 3,0 6" fill="#a371f7"/>
+    </marker>
+    <marker id="ar" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+      <polygon points="0 0,8 3,0 6" fill="#f85149"/>
+    </marker>
+  </defs>
+
+  <!-- Background -->
+  <rect width="860" height="710" fill="#0d1117" rx="8"/>
+
+  <!-- Title -->
+  <text x="430" y="26" text-anchor="middle" fill="#e6edf3"
+        font-family="'Segoe UI',Arial,sans-serif" font-size="15" font-weight="bold">
+    DevOps Learning Lab — Architecture
+  </text>
+
+  <!-- ═══════════════════════════════════════════════════
+       BROWSER
+  ═══════════════════════════════════════════════════ -->
+  <rect x="305" y="38" width="250" height="55" rx="6"
+        fill="#161b22" stroke="#58a6ff" stroke-width="2"/>
+  <text x="430" y="61" text-anchor="middle" fill="#58a6ff"
+        font-family="'Segoe UI',Arial,sans-serif" font-size="13" font-weight="600">Browser</text>
+  <text x="430" y="80" text-anchor="middle" fill="#7d8590"
+        font-family="'Segoe UI',Arial,sans-serif" font-size="10">
+    http://localhost:3000  ·  xterm.js terminal
+  </text>
+
+  <!-- Arrow: Browser → Frontend (diagonal) -->
+  <line x1="390" y1="93" x2="195" y2="158"
+        stroke="#58a6ff" stroke-width="1.5" marker-end="url(#ab)"/>
+  <text x="265" y="118" fill="#58a6ff"
+        font-family="'Segoe UI',Arial,sans-serif" font-size="9">HTTP :3000</text>
+
+  <!-- ═══════════════════════════════════════════════════
+       DOCKER COMPOSE BOUNDARY
+  ═══════════════════════════════════════════════════ -->
+  <rect x="25" y="128" width="810" height="548" rx="8"
+        fill="none" stroke="#30363d" stroke-width="1.5" stroke-dasharray="8,4"/>
+  <text x="44" y="145" fill="#3d444d"
+        font-family="'Segoe UI',Arial,sans-serif" font-size="10">Docker Compose network</text>
+
+  <!-- ═══════════════════════════════════════════════════
+       FRONTEND
+  ═══════════════════════════════════════════════════ -->
+  <rect x="45" y="156" width="200" height="120" rx="6"
+        fill="#161b22" stroke="#3fb950" stroke-width="2"/>
+  <text x="145" y="175" text-anchor="middle" fill="#3fb950"
+        font-family="'Segoe UI',Arial,sans-serif" font-size="12" font-weight="600">frontend</text>
+  <line x1="53" y1="181" x2="237" y2="181" stroke="#21262d" stroke-width="1"/>
+  <text x="145" y="196" text-anchor="middle" fill="#e6edf3"
+        font-family="'Segoe UI',Arial,sans-serif" font-size="10">nginx · alpine  :80 → :3000</text>
+  <text x="145" y="212" text-anchor="middle" fill="#7d8590"
+        font-family="'Segoe UI',Arial,sans-serif" font-size="9">Serves SPA (index.html)</text>
+  <text x="145" y="226" text-anchor="middle" fill="#7d8590"
+        font-family="'Segoe UI',Arial,sans-serif" font-size="9">Proxies  /api/*  →  backend</text>
+  <text x="145" y="240" text-anchor="middle" fill="#7d8590"
+        font-family="'Segoe UI',Arial,sans-serif" font-size="9">Upgrades  /ws/*  →  WebSocket</text>
+  <text x="145" y="255" text-anchor="middle" fill="#7d8590"
+        font-family="'Segoe UI',Arial,sans-serif" font-size="9">proxy_read_timeout 3600s</text>
+
+  <!-- Arrow: Frontend → Backend REST -->
+  <line x1="245" y1="200" x2="338" y2="200"
+        stroke="#3fb950" stroke-width="1.5" marker-end="url(#ag)"/>
+  <text x="250" y="195" fill="#3fb950"
+        font-family="'Segoe UI',Arial,sans-serif" font-size="8">REST /api/*</text>
+
+  <!-- Arrow: Frontend → Backend WS (dashed) -->
+  <line x1="245" y1="237" x2="338" y2="237"
+        stroke="#f0883e" stroke-width="1.5" stroke-dasharray="4,2" marker-end="url(#ao)"/>
+  <text x="250" y="253" fill="#f0883e"
+        font-family="'Segoe UI',Arial,sans-serif" font-size="8">WS /ws/terminal/*</text>
+
+  <!-- ═══════════════════════════════════════════════════
+       BACKEND
+  ═══════════════════════════════════════════════════ -->
+  <rect x="338" y="156" width="270" height="225" rx="6"
+        fill="#161b22" stroke="#f0883e" stroke-width="2"/>
+  <text x="473" y="175" text-anchor="middle" fill="#f0883e"
+        font-family="'Segoe UI',Arial,sans-serif" font-size="12" font-weight="600">backend</text>
+  <line x1="346" y1="181" x2="600" y2="181" stroke="#21262d" stroke-width="1"/>
+  <text x="473" y="196" text-anchor="middle" fill="#e6edf3"
+        font-family="'Segoe UI',Arial,sans-serif" font-size="10">Python 3.12 · FastAPI · uvicorn :8000</text>
+  <line x1="346" y1="204" x2="600" y2="204" stroke="#21262d" stroke-width="1"/>
+  <text x="350" y="218" fill="#7d8590"
+        font-family="'Segoe UI',Arial,sans-serif" font-size="9">GET  /api/lessons</text>
+  <text x="350" y="232" fill="#7d8590"
+        font-family="'Segoe UI',Arial,sans-serif" font-size="9">GET  /api/progress</text>
+  <text x="350" y="246" fill="#7d8590"
+        font-family="'Segoe UI',Arial,sans-serif" font-size="9">POST /api/progress/:key</text>
+  <text x="350" y="260" fill="#7d8590"
+        font-family="'Segoe UI',Arial,sans-serif" font-size="9">GET  /api/cluster/status</text>
+  <text x="350" y="274" fill="#f0883e"
+        font-family="'Segoe UI',Arial,sans-serif" font-size="9">WS   /ws/terminal/:id  →  pty.fork() → /bin/bash</text>
+  <line x1="346" y1="282" x2="600" y2="282" stroke="#21262d" stroke-width="1"/>
+  <text x="473" y="296" text-anchor="middle" fill="#7d8590"
+        font-family="'Segoe UI',Arial,sans-serif" font-size="9">kubectl · helm · argocd · python3 · git · jq</text>
+  <text x="473" y="310" text-anchor="middle" fill="#7d8590"
+        font-family="'Segoe UI',Arial,sans-serif" font-size="9">boto3 · kubernetes · click · rich · requests</text>
+  <text x="473" y="324" text-anchor="middle" fill="#7d8590"
+        font-family="'Segoe UI',Arial,sans-serif" font-size="9">KUBECONFIG → k3s-kubeconfig volume</text>
+  <text x="473" y="338" text-anchor="middle" fill="#7d8590"
+        font-family="'Segoe UI',Arial,sans-serif" font-size="9">Workspace: /workspace  (bind mount)</text>
+  <text x="473" y="354" text-anchor="middle" fill="#7d8590"
+        font-family="'Segoe UI',Arial,sans-serif" font-size="9">Prompt: esteban@sandbox:/workspace$</text>
+  <text x="473" y="368" text-anchor="middle" fill="#7d8590"
+        font-family="'Segoe UI',Arial,sans-serif" font-size="9">Lesson content from 22 JSON files</text>
+
+  <!-- Arrow: Backend → k3s -->
+  <line x1="473" y1="381" x2="473" y2="415"
+        stroke="#a371f7" stroke-width="2" marker-end="url(#ap)"/>
+  <text x="483" y="402" fill="#a371f7"
+        font-family="'Segoe UI',Arial,sans-serif" font-size="9">kubectl / Python k8s client</text>
+
+  <!-- ═══════════════════════════════════════════════════
+       K3S CLUSTER
+  ═══════════════════════════════════════════════════ -->
+  <rect x="45" y="415" width="770" height="210" rx="6"
+        fill="#161b22" stroke="#a371f7" stroke-width="2"/>
+  <text x="430" y="434" text-anchor="middle" fill="#a371f7"
+        font-family="'Segoe UI',Arial,sans-serif" font-size="12" font-weight="600">
+    k3s v1.29.4 — Kubernetes  (rancher/k3s)
+  </text>
+  <line x1="53" y1="440" x2="807" y2="440" stroke="#21262d" stroke-width="1"/>
+
+  <!-- ArgoCD sub-box -->
+  <rect x="58" y="449" width="172" height="108" rx="4"
+        fill="#0d1117" stroke="#58a6ff" stroke-width="1.5"/>
+  <text x="144" y="465" text-anchor="middle" fill="#58a6ff"
+        font-family="'Segoe UI',Arial,sans-serif" font-size="11" font-weight="600">ArgoCD v2.10.5</text>
+  <line x1="66" y1="471" x2="222" y2="471" stroke="#21262d" stroke-width="1"/>
+  <text x="144" y="484" text-anchor="middle" fill="#7d8590"
+        font-family="'Segoe UI',Arial,sans-serif" font-size="9">ns: argocd</text>
+  <text x="144" y="497" text-anchor="middle" fill="#7d8590"
+        font-family="'Segoe UI',Arial,sans-serif" font-size="9">insecure mode (no TLS)</text>
+  <text x="144" y="510" text-anchor="middle" fill="#7d8590"
+        font-family="'Segoe UI',Arial,sans-serif" font-size="9">apps: web-app</text>
+  <text x="144" y="523" text-anchor="middle" fill="#7d8590"
+        font-family="'Segoe UI',Arial,sans-serif" font-size="9">      monitoring-stack</text>
+  <text x="144" y="536" text-anchor="middle" fill="#7d8590"
+        font-family="'Segoe UI',Arial,sans-serif" font-size="9">password → /data/argocd-password</text>
+  <text x="144" y="549" text-anchor="middle" fill="#58a6ff"
+        font-family="'Segoe UI',Arial,sans-serif" font-size="9">UI: localhost:8080 (port-forward)</text>
+
+  <!-- ESO sub-box -->
+  <rect x="244" y="449" width="180" height="108" rx="4"
+        fill="#0d1117" stroke="#3fb950" stroke-width="1.5"/>
+  <text x="334" y="465" text-anchor="middle" fill="#3fb950"
+        font-family="'Segoe UI',Arial,sans-serif" font-size="11" font-weight="600">Ext. Secrets Operator</text>
+  <line x1="252" y1="471" x2="416" y2="471" stroke="#21262d" stroke-width="1"/>
+  <text x="334" y="484" text-anchor="middle" fill="#7d8590"
+        font-family="'Segoe UI',Arial,sans-serif" font-size="9">ns: external-secrets</text>
+  <text x="334" y="497" text-anchor="middle" fill="#7d8590"
+        font-family="'Segoe UI',Arial,sans-serif" font-size="9">ClusterSecretStore</text>
+  <text x="334" y="510" text-anchor="middle" fill="#7d8590"
+        font-family="'Segoe UI',Arial,sans-serif" font-size="9">fake AWS provider</text>
+  <text x="334" y="523" text-anchor="middle" fill="#7d8590"
+        font-family="'Segoe UI',Arial,sans-serif" font-size="9">4 pre-seeded secrets</text>
+  <text x="334" y="536" text-anchor="middle" fill="#7d8590"
+        font-family="'Segoe UI',Arial,sans-serif" font-size="9">prod/db · harbor · api · keycloak</text>
+  <text x="334" y="549" text-anchor="middle" fill="#7d8590"
+        font-family="'Segoe UI',Arial,sans-serif" font-size="9">ExternalSecret → db-credentials</text>
+
+  <!-- Prometheus sub-box -->
+  <rect x="438" y="449" width="188" height="108" rx="4"
+        fill="#0d1117" stroke="#f0883e" stroke-width="1.5"/>
+  <text x="532" y="465" text-anchor="middle" fill="#f0883e"
+        font-family="'Segoe UI',Arial,sans-serif" font-size="11" font-weight="600">kube-prometheus-stack</text>
+  <line x1="446" y1="471" x2="618" y2="471" stroke="#21262d" stroke-width="1"/>
+  <text x="532" y="484" text-anchor="middle" fill="#7d8590"
+        font-family="'Segoe UI',Arial,sans-serif" font-size="9">ns: monitoring</text>
+  <text x="532" y="497" text-anchor="middle" fill="#7d8590"
+        font-family="'Segoe UI',Arial,sans-serif" font-size="9">Prometheus + AlertManager</text>
+  <text x="532" y="510" text-anchor="middle" fill="#7d8590"
+        font-family="'Segoe UI',Arial,sans-serif" font-size="9">Grafana (admin/admin)</text>
+  <text x="532" y="523" text-anchor="middle" fill="#7d8590"
+        font-family="'Segoe UI',Arial,sans-serif" font-size="9">Alerts: PodCrashLooping</text>
+  <text x="532" y="536" text-anchor="middle" fill="#7d8590"
+        font-family="'Segoe UI',Arial,sans-serif" font-size="9">        PodNotReady</text>
+  <text x="532" y="549" text-anchor="middle" fill="#f0883e"
+        font-family="'Segoe UI',Arial,sans-serif" font-size="9">UI: localhost:3001 (port-forward)</text>
+
+  <!-- Workloads sub-box -->
+  <rect x="640" y="449" width="168" height="108" rx="4"
+        fill="#0d1117" stroke="#e3b341" stroke-width="1.5"/>
+  <text x="724" y="465" text-anchor="middle" fill="#e3b341"
+        font-family="'Segoe UI',Arial,sans-serif" font-size="11" font-weight="600">Sample Workloads</text>
+  <line x1="648" y1="471" x2="800" y2="471" stroke="#21262d" stroke-width="1"/>
+  <text x="724" y="484" text-anchor="middle" fill="#7d8590"
+        font-family="'Segoe UI',Arial,sans-serif" font-size="9">web-app nginx 2×replicas</text>
+  <text x="724" y="497" text-anchor="middle" fill="#7d8590"
+        font-family="'Segoe UI',Arial,sans-serif" font-size="9">broken-app (CrashLoop)</text>
+  <text x="724" y="510" text-anchor="middle" fill="#7d8590"
+        font-family="'Segoe UI',Arial,sans-serif" font-size="9">api-server (learning ns)</text>
+  <text x="724" y="523" text-anchor="middle" fill="#7d8590"
+        font-family="'Segoe UI',Arial,sans-serif" font-size="9">PodDisruptionBudget</text>
+  <text x="724" y="536" text-anchor="middle" fill="#7d8590"
+        font-family="'Segoe UI',Arial,sans-serif" font-size="9">ns: default · learning</text>
+  <text x="724" y="549" text-anchor="middle" fill="#7d8590"
+        font-family="'Segoe UI',Arial,sans-serif" font-size="9">PrometheusRule alerts</text>
+
+  <!-- k3s footer labels -->
+  <text x="430" y="571" text-anchor="middle" fill="#3d444d"
+        font-family="'Segoe UI',Arial,sans-serif" font-size="9">
+    Namespaces: default · argocd · monitoring · external-secrets · learning
+  </text>
+  <text x="430" y="584" text-anchor="middle" fill="#3d444d"
+        font-family="'Segoe UI',Arial,sans-serif" font-size="9">
+    Disabled: traefik · servicelb · metrics-server  ·  Token: devops-learn-secret
+  </text>
+  <text x="430" y="597" text-anchor="middle" fill="#3d444d"
+        font-family="'Segoe UI',Arial,sans-serif" font-size="9">
+    kubeconfig written to k3s-kubeconfig volume → mounted into backend + bootstrap
+  </text>
+  <text x="430" y="610" text-anchor="middle" fill="#3d444d"
+        font-family="'Segoe UI',Arial,sans-serif" font-size="9">
+    healthcheck: kubectl get nodes  (10s interval · 30 retries)
+  </text>
+
+  <!-- ═══════════════════════════════════════════════════
+       BOOTSTRAP
+  ═══════════════════════════════════════════════════ -->
+  <rect x="45" y="638" width="250" height="30" rx="5"
+        fill="#161b22" stroke="#f85149" stroke-width="1.5" stroke-dasharray="5,3"/>
+  <text x="170" y="651" text-anchor="middle" fill="#f85149"
+        font-family="'Segoe UI',Arial,sans-serif" font-size="10" font-weight="600">bootstrap  (one-time, exits when done)</text>
+  <text x="170" y="663" text-anchor="middle" fill="#7d8590"
+        font-family="'Segoe UI',Arial,sans-serif" font-size="8">installs ArgoCD · ESO · Prometheus · workloads</text>
+
+  <!-- Arrow: Bootstrap → k3s -->
+  <line x1="170" y1="638" x2="170" y2="625"
+        stroke="#f85149" stroke-width="1.5" stroke-dasharray="3,2" marker-end="url(#ar)"/>
+
+  <!-- ═══════════════════════════════════════════════════
+       VOLUMES
+  ═══════════════════════════════════════════════════ -->
+  <text x="320" y="636" fill="#3d444d"
+        font-family="'Segoe UI',Arial,sans-serif" font-size="9">Volumes</text>
+
+  <!-- k3s-kubeconfig -->
+  <rect x="365" y="640" width="125" height="28" rx="4"
+        fill="#161b22" stroke="#7d8590" stroke-width="1" stroke-dasharray="3,2"/>
+  <rect x="365" y="640" width="125" height="7" rx="3"
+        fill="#21262d" stroke="none"/>
+  <text x="428" y="655" text-anchor="middle" fill="#7d8590"
+        font-family="'Segoe UI',Arial,sans-serif" font-size="9">k3s-kubeconfig</text>
+  <text x="428" y="664" text-anchor="middle" fill="#3d444d"
+        font-family="'Segoe UI',Arial,sans-serif" font-size="8">kubeconfig.yaml</text>
+
+  <!-- k3s-server -->
+  <rect x="500" y="640" width="100" height="28" rx="4"
+        fill="#161b22" stroke="#7d8590" stroke-width="1" stroke-dasharray="3,2"/>
+  <rect x="500" y="640" width="100" height="7" rx="3"
+        fill="#21262d" stroke="none"/>
+  <text x="550" y="655" text-anchor="middle" fill="#7d8590"
+        font-family="'Segoe UI',Arial,sans-serif" font-size="9">k3s-server</text>
+  <text x="550" y="664" text-anchor="middle" fill="#3d444d"
+        font-family="'Segoe UI',Arial,sans-serif" font-size="8">cluster state</text>
+
+  <!-- ./data -->
+  <rect x="610" y="640" width="95" height="28" rx="4"
+        fill="#161b22" stroke="#7d8590" stroke-width="1" stroke-dasharray="3,2"/>
+  <rect x="610" y="640" width="95" height="7" rx="3"
+        fill="#21262d" stroke="none"/>
+  <text x="658" y="655" text-anchor="middle" fill="#7d8590"
+        font-family="'Segoe UI',Arial,sans-serif" font-size="9">./data</text>
+  <text x="658" y="664" text-anchor="middle" fill="#3d444d"
+        font-family="'Segoe UI',Arial,sans-serif" font-size="8">progress.json · creds</text>
+
+  <!-- ./backend bind mount -->
+  <rect x="715" y="640" width="110" height="28" rx="4"
+        fill="#161b22" stroke="#7d8590" stroke-width="1" stroke-dasharray="3,2"/>
+  <rect x="715" y="640" width="110" height="7" rx="3"
+        fill="#21262d" stroke="none"/>
+  <text x="770" y="655" text-anchor="middle" fill="#7d8590"
+        font-family="'Segoe UI',Arial,sans-serif" font-size="9">./backend (bind)</text>
+  <text x="770" y="664" text-anchor="middle" fill="#3d444d"
+        font-family="'Segoe UI',Arial,sans-serif" font-size="8">lessons/ · main.py</text>
+
+</svg>

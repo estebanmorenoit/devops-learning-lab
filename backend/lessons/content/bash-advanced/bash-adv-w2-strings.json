@@ -1,0 +1,40 @@
+{
+  "title": "Advanced String Processing & Regex",
+  "phase": "bash-advanced",
+  "week": 2,
+  "category": "Bash Advanced",
+  "duration": "~60 min",
+  "summary": "Beyond basic substitution — bash regex, heredocs, printf formatting, and the text-processing patterns that show up in every real DevOps script.",
+  "sections": [
+    {
+      "id": "bash-regex",
+      "title": "Bash regex with [[ =~ ]]",
+      "type": "lesson",
+      "body": "**Why:** avoid spawning grep just to check if a string matches a pattern. `[[ =~ ]]` runs regex in the current shell and captures groups via `BASH_REMATCH`.\n\n```bash\n# Basic match\nversion=\"v1.35.0\"\nif [[ \"$version\" =~ ^v([0-9]+)\\.([0-9]+)\\.([0-9]+)$ ]]; then\n    major=\"${BASH_REMATCH[1]}\"\n    minor=\"${BASH_REMATCH[2]}\"\n    patch=\"${BASH_REMATCH[3]}\"\n    echo \"Major: $major, Minor: $minor, Patch: $patch\"\nfi\n\n# Validate AWS region format\nvalidate_region() {\n    local region=\"$1\"\n    if [[ ! \"$region\" =~ ^[a-z]{2}-[a-z]+-[0-9]$ ]]; then\n        echo \"ERROR: invalid region format: $region\" >&2\n        return 1\n    fi\n}\n\nvalidate_region \"eu-central-1\"   # OK\nvalidate_region \"eu-central\"     # ERROR\n\n# Extract image tag from full image string\nimage=\"123456789012.dkr.ecr.eu-central-1.amazonaws.com/my-app:v1.2.3\"\nif [[ \"$image\" =~ :([^:]+)$ ]]; then\n    tag=\"${BASH_REMATCH[1]}\"   # v1.2.3\nfi\n\n# Check for 'latest' or missing tag (dangerous in prod)\nif [[ \"$image\" =~ :latest$ ]] || [[ ! \"$image\" =~ : ]]; then\n    echo \"WARNING: image not pinned to a specific version\"\nfi\n\n# Extract k8s resource from kubectl error\nerror=\"Error from server (NotFound): pods \\\"my-pod\\\" not found\"\nif [[ \"$error\" =~ \\\"([^\\\"]+)\\\" ]]; then\n    resource_name=\"${BASH_REMATCH[1]}\"\nfi\n```"
+    },
+    {
+      "id": "printf",
+      "title": "printf for proper formatting",
+      "type": "lesson",
+      "body": "**Why:** `echo` is inconsistent across platforms (`-e`, `-n` behave differently). `printf` is POSIX, predictable, and much more powerful for formatted output.\n\n```bash\n# Basic formatting\nprintf \"%-30s %-15s %s\\n\" \"NAME\" \"STATUS\" \"AGE\"    # left-aligned columns\nprintf \"%30s %15s %5s\\n\"  \"NAME\" \"STATUS\" \"AGE\"    # right-aligned\nprintf \"%-30s %-15s %5d\\n\" \"my-pod\" \"Running\" 42   # integer formatting\n\n# Colours without echo -e\nRED=\"\\033[31m\"; GREEN=\"\\033[32m\"; RESET=\"\\033[0m\"\nprintf \"%bFAILED%b: %s\\n\" \"$RED\" \"$RESET\" \"pod crashed\"\n\n# Writing to files safely (no trailing newline issues)\nprintf '%s\\n' \"line1\" \"line2\" \"line3\" > output.txt\n\n# Zero-padded numbers\nfor i in $(seq 1 5); do\n    printf \"job-%03d\\n\" \"$i\"   # job-001, job-002 ...\ndone\n\n# Table output — real-world pod status\nprint_pod_table() {\n    printf \"\\n%-55s %-20s %-10s %s\\n\" \"NAME\" \"STATUS\" \"RESTARTS\" \"AGE\"\n    printf '%s\\n' \"$(printf '%0.s-' {1..100})\"\n    while IFS='|' read -r name status restarts age; do\n        if [[ \"$status\" != \"Running\" ]]; then\n            printf \"${RED}%-55s %-20s %-10s %s${RESET}\\n\" \"$name\" \"$status\" \"$restarts\" \"$age\"\n        else\n            printf \"${GREEN}%-55s${RESET} %-20s %-10s %s\\n\" \"$name\" \"$status\" \"$restarts\" \"$age\"\n        fi\n    done\n}\n```"
+    },
+    {
+      "id": "heredocs",
+      "title": "Heredocs and herestrings",
+      "type": "lesson",
+      "body": "```bash\n# Basic heredoc — preserves newlines, expands variables\ncat << EOF\nNamespace: $NAMESPACE\nContext:   $(kubectl config current-context)\nDate:      $(date -u)\nEOF\n\n# Quoted heredoc — no variable expansion (literal)\ncat << 'EOF'\nThis $VARIABLE will NOT be expanded.\nNeither will $(this command).\nEOF\n\n# Indented heredoc (bash 4+, use tab for indent)\nif true; then\n    cat <<- EOF\n        This content has leading tabs stripped.\n        Useful inside indented if/for blocks.\n    EOF\nfi\n\n# Heredoc to a file\ncat > /tmp/manifest.yaml << EOF\napiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: ${APP_NAME}-config\n  namespace: ${NAMESPACE}\ndata:\n  environment: ${ENV}\n  region: ${AWS_REGION}\nEOF\n\n# Heredoc to kubectl apply\nkubectl apply -f - << EOF\napiVersion: v1\nkind: Namespace\nmetadata:\n  name: ${NAMESPACE}\n  labels:\n    managed-by: script\nEOF\n\n# Herestring — single line, no subshell\nread -r first rest <<< \"hello world\"\necho \"$first\"   # hello\necho \"$rest\"    # world\n\n# Pass JSON to jq without a file\njq -r '.items[].name' <<< '{\"items\":[{\"name\":\"a\"},{\"name\":\"b\"}]}'\n```"
+    },
+    {
+      "id": "cheatsheet",
+      "title": "Cheat sheet",
+      "type": "lesson",
+      "body": "```bash\n# ── Regex ────────────────────────────────────────\n[[ \"$str\" =~ pattern ]]      # match (extended regex)\n${BASH_REMATCH[0]}           # full match\n${BASH_REMATCH[1]}           # first capture group\n[[ \"$str\" =~ ^v[0-9]+\\. ]]  # starts with vN.\n[[ ! \"$str\" =~ latest ]]    # does NOT contain 'latest'\n\n# ── printf format strings ────────────────────────\n%-30s   # left-aligned string, 30 wide\n%30s    # right-aligned string, 30 wide\n%05d    # integer, zero-padded to 5 digits\n%8.2f   # float, 8 wide, 2 decimal places\n%b      # interpret backslash escapes (for colours)\n\\n      # newline  \\t tab\n\n# ── Heredoc variants ─────────────────────────────\ncat << EOF        # expand vars\ncat << 'EOF'      # no expansion (literal)\ncat <<- EOF       # strip leading TABS (not spaces)\ncmd <<< \"string\" # herestring (single value)\n\n# ── String ops quick ref ─────────────────────────\n${#str}              # length\n${str:0:5}           # substring from 0, length 5\n${str##*/}           # strip longest prefix matching */\n${str%.*}            # strip shortest suffix matching .*\n${str/old/new}       # replace first\n${str//old/new}      # replace all\n${str^^}             # uppercase\n${str,,}             # lowercase\n${str:-default}      # default if unset/empty\n${str:?\"error msg\"}  # error and exit if unset/empty\n```"
+    },
+    {
+      "id": "quiz",
+      "title": "Quiz",
+      "type": "exercise",
+      "body": "**Q1.** Given `image=\"my-app:v1.2.3\"`, write a one-liner using `[[ =~ ]]` to extract the tag into `$tag`.\n\n**Q2.** What's the difference between `<< EOF` and `<< 'EOF'`?\n\n**Q3.** Why use `printf` instead of `echo` in scripts?\n\n**Q4.** What does `${str##*/}` do? Give a concrete example.\n\n---\n\n**Answers:**\n\n**A1.** `[[ \"$image\" =~ :(.+)$ ]] && tag=\"${BASH_REMATCH[1]}\"`\n\n**A2.** Unquoted `EOF` expands variables and `$(...)`. Quoted `'EOF'` treats everything literally — useful for generating scripts or configs that contain `$` themselves.\n\n**A3.** `echo` behaviour varies across shells and platforms (`-e`, `-n` are not POSIX). `printf` is consistent, supports format strings, and doesn't add unexpected newlines or interpret escape sequences unless you ask.\n\n**A4.** Strips the longest match of `*/` from the start — effectively gets the filename from a path. `str=\"/path/to/file.yaml\"` → `${str##*/}` = `file.yaml`.\n\n---\n\n**Exercise:**\n\n```bash\n# 1. Validate these image strings — flag anything unpinned or using 'latest'\nimages=(\n    \"nginx:latest\"\n    \"my-app:v1.2.3\"\n    \"busybox\"\n    \"registry.k8s.io/coredns:1.11.1\"\n    \"my-app:\"\n)\n\nfor image in \"${images[@]}\"; do\n    # TODO: use [[ =~ ]] to detect: no tag, 'latest' tag, or empty tag\n    echo \"Checking: $image\"\ndone\n\n# 2. Generate a kubeconfig snippet using a heredoc\n# with variables for cluster name, endpoint, and namespace\nCLUSTER_NAME=\"eks-prod-mach-x7kq\"\nENDPOINT=\"https://ABCDEF.gr7.eu-central-1.eks.amazonaws.com\"\nNAMESPACE=\"argocd\"\n\ncat << EOF\n# TODO: write the heredoc here\nEOF\n```"
+    }
+  ]
+}

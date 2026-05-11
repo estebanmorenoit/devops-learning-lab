@@ -1,0 +1,86 @@
+services:
+
+  # ── k3s: real Kubernetes cluster ──────────────────────────────────────────
+  k3s:
+    image: rancher/k3s:v1.29.4-k3s1
+    hostname: k3s-node   # fixed hostname → stable node name across container restarts
+    command: >
+      server
+      --disable=traefik
+      --disable=servicelb
+      --disable=metrics-server
+      --write-kubeconfig-mode=644
+      --tls-san=k3s
+      --node-name=k3s-node
+    privileged: true
+    tmpfs:
+      - /run
+      - /var/run
+    volumes:
+      - k3s-server:/var/lib/rancher/k3s
+      - k3s-kubeconfig:/etc/rancher/k3s
+      - ./data:/data
+    environment:
+      - K3S_TOKEN=devops-learn-secret
+      - K3S_KUBECONFIG_OUTPUT=/etc/rancher/k3s/k3s.yaml
+    healthcheck:
+      test: ["CMD", "kubectl", "get", "nodes"]
+      interval: 10s
+      timeout: 10s
+      retries: 30
+      start_period: 30s
+    restart: unless-stopped
+
+  # ── bootstrap: installs ArgoCD, ESO, sample workloads ───────────────────
+  bootstrap:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.bootstrap
+    depends_on:
+      k3s:
+        condition: service_healthy
+    volumes:
+      - k3s-kubeconfig:/etc/rancher/k3s:ro
+      - ./manifests:/manifests:ro
+      - ./data:/data
+    environment:
+      - KUBECONFIG=/etc/rancher/k3s/k3s.yaml
+    restart: "no"
+
+  # ── backend: FastAPI + PTY WebSocket ────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    depends_on:
+      k3s:
+        condition: service_healthy
+    volumes:
+      - k3s-kubeconfig:/etc/rancher/k3s:ro
+      - ./data:/data
+      - ./backend:/app
+    environment:
+      - KUBECONFIG=/tmp/k3s.yaml
+      - DATA_DIR=/data
+      - K3S_HOST=k3s
+    ports:
+      - "8000:8000"
+      - "8080:8080"   # ArgoCD UI (kubectl port-forward via ./start.sh argocd-ui)
+      - "3001:3001"   # Grafana UI  (kubectl port-forward via ./start.sh grafana-ui)
+      - "9090:9090"   # Prometheus  (kubectl port-forward, manual)
+    restart: unless-stopped
+
+  # ── frontend: nginx serving the SPA ─────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    depends_on:
+      - backend
+    ports:
+      - "3000:80"
+    restart: unless-stopped
+
+volumes:
+  k3s-server:
+  k3s-kubeconfig:
