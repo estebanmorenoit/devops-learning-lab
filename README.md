@@ -20,7 +20,7 @@ An interactive, self-hosted learning environment for DevOps engineers. Every les
 | Python libs | boto3, kubernetes, click, rich, requests, httpx, pytest | — | pre-installed in backend container |
 | CLI tools | kubectl, helm, argocd | v1.29.4 / 3.x / v2.10.5 | available in every terminal session |
 
-## Curriculum — 22 lessons across 11 topics
+## Curriculum — 37 lessons across 14 topics
 
 ### Bash (weeks 1–3)
 | # | Lesson | Key concepts |
@@ -107,12 +107,12 @@ The bootstrap container installs these on first start:
 - `web-app` → syncs the ArgoCD guestbook example app
 - `monitoring-stack` → tracks the helm-guestbook example
 
-**External Secrets Operator** — `ClusterSecretStore` named `fake-aws-secrets` with four pre-seeded keys:
+**External Secrets Operator** — `ClusterSecretStore` named `fake-aws-secrets` with four pre-seeded keys (fake values, for learning only):
 ```
-prod/db/password          → supersecret-db-password-123
-prod/harbor/robot-token   → robot-token-abc123xyz
-prod/api/key              → api-key-prod-xyz789
-prod/keycloak/admin       → keycloak-admin-pass-456
+prod/db/password          → <fake-db-password>
+prod/harbor/robot-token   → <fake-robot-token>
+prod/api/key              → <fake-api-key>
+prod/keycloak/admin       → <fake-admin-password>
 ```
 
 **Prometheus alerts** — two rules installed in the `monitoring` namespace:
@@ -133,9 +133,9 @@ prod/keycloak/admin       → keycloak-admin-pass-456
 ## Quick start
 
 ```bash
-git clone <this-repo>
+git clone https://github.com/estebanmorenoit/devops-learning-lab.git
 cd devops-learning-lab
-./start.sh
+./start.sh build
 ```
 
 Open **http://localhost:3000**. The cluster status indicator in the top-right turns green once k3s, ArgoCD, ESO, and Prometheus finish bootstrapping. **This takes 3–5 minutes on first run** while Helm charts are downloaded and deployed.
