@@ -1,136 +1,24 @@
 # DevOps Learning Lab
 
-An interactive, self-hosted learning environment for DevOps engineers. Every lesson comes with a live browser terminal connected to a real k3s Kubernetes cluster — not a simulator. You run actual `kubectl`, `helm`, `argocd`, and Python commands against real infrastructure that boots inside Docker on your laptop.
+> A self-hosted, interactive lab for learning the full DevOps stack — with a **real Kubernetes cluster** running inside Docker on your laptop.
 
-## Architecture
+Every lesson includes written theory and hands-on exercises you complete in a live bash terminal connected to a real k3s cluster. No simulators, no sandboxed abstractions — you run actual `kubectl`, `helm`, `argocd`, and Python commands against real infrastructure.
 
-![Architecture diagram](architecture.svg)
+---
 
-## Stack
+## What you get
 
-| Layer | Technology | Version | Notes |
-|-------|-----------|---------|-------|
-| Cluster | k3s | v1.29.4 | traefik, servicelb, metrics-server disabled |
-| GitOps | ArgoCD | v2.10.5 | insecure mode (no TLS in sandbox) |
-| Secrets | External Secrets Operator | latest chart | fake AWS provider pre-configured |
-| Monitoring | kube-prometheus-stack | latest chart | Prometheus + Grafana + AlertManager |
-| Backend | FastAPI + uvicorn | 0.111.0 / 0.29.0 | PTY WebSocket over `/ws/terminal/:id` |
-| Frontend | nginx | alpine | SPA proxy, WebSocket upgrade |
-| Terminal | xterm.js | 5.3.0 | xterm-addon-fit for auto-resize |
-| Python libs | boto3, kubernetes, click, rich, requests, httpx, pytest | — | pre-installed in backend container |
-| CLI tools | kubectl, helm, argocd | v1.29.4 / 3.x / v2.10.5 | available in every terminal session |
+- **37 structured lessons** across 12 topics, ordered from Linux basics to GitOps and Observability
+- A **live k3s Kubernetes cluster** that boots inside Docker — pre-loaded with ArgoCD, Prometheus, Grafana, and External Secrets Operator
+- An **in-browser terminal** (real bash shell) so you can follow along without leaving the UI
+- **Split view** — read the lesson on the left, run commands on the right, side by side
+- Progress tracking saved locally — pick up exactly where you left off
 
-## Curriculum — 37 lessons across 14 topics
-
-### Bash (weeks 1–3)
-| # | Lesson | Key concepts |
-|---|--------|-------------|
-| 1 | Defensive Bash Scripting | `set -euo pipefail`, quoting, exit codes, traps |
-| 2 | Text & Data Wrangling | `grep`, `sed`, `awk`, `jq`, log parsing |
-| 3 | Idempotent Scripts & Functions | Guard conditions, lock files, retry loops |
-
-### Python for DevOps (weeks 4–8)
-| # | Lesson | Key concepts |
-|---|--------|-------------|
-| 4 | Python Basics for DevOps | File I/O, argparse, pathlib, json/yaml |
-| 5 | subprocess & Error Handling | `subprocess.run`, capturing output, error propagation |
-| 6 | AWS Automation with boto3 | EC2, S3, SSM, IAM with real-shaped mock responses |
-| 7 | Kubernetes Python Client | `client.CoreV1Api()`, listing pods, watching events |
-| 8 | REST APIs with requests | `requests`, `httpx`, pagination, retries, auth headers |
-
-### Projects (weeks 9–12)
-| # | Lesson | Description |
-|---|--------|-------------|
-| 9 | GitLab CI Helper Tool | CLI that queries GitLab API and summarises pipeline state |
-| 10 | ESO Secret Rotation Tool | Triggers ESO refreshes and validates sync status |
-| 11 | Namespace & Cost Hygiene CLI | Finds idle namespaces, unset resource limits, orphaned PVCs |
-| 12 | Keycloak & On-Prem Ops | Keycloak admin API — user sync and realm management |
-
-### Advanced & Specialist tracks
-| Topic | Lessons | Covers |
-|-------|---------|--------|
-| Bash Advanced | Arrays, Advanced String Processing | Associative arrays, string ops, `mapfile`, `printf` |
-| Python Advanced | Classes & OOP, Testing | Dataclasses, ABC, pytest, `pytest-mock`, monkeypatching |
-| Networking | TLS, Certificates & PKI | x.509, `openssl`, cert rotation, K8s TLS secrets |
-| Observability | Prometheus & PromQL | Metric types, labels, alerting rules, Grafana queries |
-| GitLab CI/CD | Pipelines & Caching | Stages, artifacts, cache keys, `rules:`, `needs:` |
-| Terraform | Modules & State | Module structure, remote state, `terraform import` |
-| Helm | Chart Authoring | `values.yaml`, helpers, `_helpers.tpl`, chart testing |
-| Docker | Images, Layers & Networking | Multi-stage builds, layer caching, bridge networks |
-
-## Terminal sandbox
-
-Each lesson opens a fully interactive bash shell inside the backend container. The environment is pre-configured for DevOps work:
-
-```
-esteban@sandbox:/workspace$
-```
-
-**Pre-installed tools:** `kubectl` `helm` `argocd` `python3` `boto3` `git` `jq` `curl` `openssl` `vim`
-
-**Shell aliases:**
-
-| Alias | Command |
-|-------|---------|
-| `k` | `kubectl` |
-| `kgp` | `kubectl get pods` |
-| `kgpa` | `kubectl get pods -A` |
-| `kl` | `kubectl logs` |
-| `kd` | `kubectl describe` |
-| `kaf` | `kubectl apply -f` |
-| `agl` | `argocd app list` |
-| `ags` | `argocd app sync` |
-
-**Workspace files** at `/workspace`:
-- `app.log` — structured application log with errors, OOMKill, restarts
-- `pod.log` — pod lifecycle log with CrashLoopBackOff sequence
-- `access.log` — nginx access log with 4xx/5xx entries
-- `deployment.yaml` — sample Kubernetes Deployment manifest
-- `values.yaml` — Helm values file with intentionally unpinned image tags
-- `config.yaml` — app config referencing cluster-internal services
-- `check_images.py` — starter Python script (finds unpinned `latest` tags)
-
-**Mock AWS environment** (for boto3 lessons):
-```
-AWS_DEFAULT_REGION=eu-central-1
-AWS_ACCOUNT_ID=123456789012
-AWS_PROFILE=prod
-```
-
-Run `help-devops` inside any terminal session for a quick command reference.
-
-## Pre-installed cluster resources
-
-The bootstrap container installs these on first start:
-
-**ArgoCD** — two sample applications registered:
-- `web-app` → syncs the ArgoCD guestbook example app
-- `monitoring-stack` → tracks the helm-guestbook example
-
-**External Secrets Operator** — `ClusterSecretStore` named `fake-aws-secrets` with four pre-seeded keys (fake values, for learning only):
-```
-prod/db/password          → <fake-db-password>
-prod/harbor/robot-token   → <fake-robot-token>
-prod/api/key              → <fake-api-key>
-prod/keycloak/admin       → <fake-admin-password>
-```
-
-**Prometheus alerts** — two rules installed in the `monitoring` namespace:
-- `PodCrashLooping` — fires when a pod restarts >3 times in 15 minutes
-- `PodNotReady` — fires when a pod is not Ready for 5+ minutes
-
-**Sample workloads:**
-- `default/web-app` — 2-replica nginx deployment, healthy, behind a PodDisruptionBudget
-- `default/broken-app` — intentionally crash-looping busybox (for debugging practice)
-- `learning/api-server` — hashicorp/http-echo, used by Python and ESO lessons
-
-## Requirements
-
-- Docker with Compose v2 (`docker compose` subcommand)
-- ~4 GB RAM free for k3s and the monitoring stack
-- macOS, Linux, or Windows with WSL2
+---
 
 ## Quick start
+
+**Requirements:** Docker with Compose v2 · ~4 GB RAM free · macOS, Linux, or Windows (WSL2)
 
 ```bash
 git clone https://github.com/estebanmorenoit/devops-learning-lab.git
@@ -138,82 +26,221 @@ cd devops-learning-lab
 ./start.sh build
 ```
 
-Open **http://localhost:3000**. The cluster status indicator in the top-right turns green once k3s, ArgoCD, ESO, and Prometheus finish bootstrapping. **This takes 3–5 minutes on first run** while Helm charts are downloaded and deployed.
+Then open **http://localhost:3000**.
 
-Watch bootstrap progress in a separate terminal:
+> **First run takes 3–5 minutes.** The cluster status indicator in the top-right corner turns green once k3s, ArgoCD, ESO, and Prometheus finish bootstrapping. Watch progress in a separate terminal with `./start.sh logs-bootstrap`.
 
-```bash
-./start.sh logs-bootstrap
-```
+---
+
+## Using the lab
+
+### Dashboard
+
+The dashboard is your home base. It shows all 12 topic cards with your progress on each. Click any card — or any lesson in the left sidebar — to jump straight to it.
+
+Lessons are numbered **W1 – W37** in the recommended order. Later topics build on earlier ones, so working through them in sequence gives the best experience.
+
+### Lessons
+
+Each lesson has two parts:
+
+1. **Theory panel** — structured explanation, examples, and code snippets
+2. **Terminal** — a live bash shell in the sandbox. Commands run against the real cluster
+
+Use the **Split / Theory / Term** toggle in the top-right to switch between views. Split view lets you read and run commands at the same time.
+
+When you finish a lesson, hit **Mark complete** in the top bar to record your progress.
+
+### The terminal
+
+The terminal is a real bash shell inside the sandbox container — not a simulation. Everything you run there affects the live k3s cluster.
+
+Type `help-devops` at any time for a quick reference of common commands and shortcuts.
+
+---
+
+## Curriculum — 37 lessons
+
+| # | Topic | Lessons |
+|---|-------|---------|
+| W1–W2 | **Linux & OS** | Linux Fundamentals · Terminal Mastery & System Monitoring |
+| W3 | **Git** | Git Fundamentals |
+| W4–W6 | **Networking** | Networking & Protocols · TLS, Certificates & PKI · Web Servers, Reverse Proxies & Load Balancers |
+| W7 | **Docker** | Images, Layers & Networking |
+| W8–W9 | **Kubernetes** | Core Concepts · Operations |
+| W10 | **Cloud / AWS** | Cloud Providers & AWS Fundamentals |
+| W11–W12 | **IaC** | Terraform Modules & State · Configuration Management with Ansible |
+| W13–W15 | **CI/CD & Helm** | GitLab CI/CD — Pipelines & Caching · CI/CD with GitHub Actions · Helm Chart Authoring |
+| W16 | **GitOps** | GitOps & ArgoCD |
+| W17 | **Security** | Secret Management |
+| W18–W19 | **Observability** | Prometheus & PromQL · Logs Management |
+| W20–W26 | **Bash** | Defensive Scripting · Text & Data Wrangling · Idempotent Scripts · Reusable Libraries · kubectl Scripting · Arrays · Advanced String Processing |
+| W27–W33 | **Python** | Basics for DevOps · subprocess · boto3 · Kubernetes Client · REST APIs · OOP · Testing |
+| W34–W37 | **Projects** | GitLab CI Helper · ESO Secret Rotation · Namespace & Cost Hygiene CLI · Keycloak & On-Prem Ops |
+
+---
 
 ## Commands
 
 ```bash
-./start.sh                   # same as 'up'
-./start.sh up                # build images and start all services
-./start.sh stop              # stop containers, preserve volumes (fast restart)
-./start.sh reset             # destroy volumes + bootstrap flag (full wipe)
-./start.sh logs              # tail backend + frontend logs
-./start.sh logs-bootstrap    # tail bootstrap logs (useful on first run)
-./start.sh logs-k3s          # tail k3s control-plane logs
-./start.sh restart           # restart only the backend container
-./start.sh shell             # open an interactive bash shell in the backend
-./start.sh argocd-ui         # port-forward ArgoCD → http://localhost:8080
-./start.sh grafana-ui        # port-forward Grafana → http://localhost:3001 (admin/admin)
+./start.sh                   # Start the lab (builds images on first run)
+./start.sh build             # Force rebuild images — use after Dockerfile changes
+./start.sh stop              # Stop containers, keep cluster state (fast restart)
+./start.sh reset             # Full wipe — removes cluster state and volumes
+./start.sh logs              # Tail backend + frontend logs
+./start.sh logs-bootstrap    # Tail cluster bootstrap logs
+./start.sh logs-k3s          # Tail k3s control-plane logs
+./start.sh restart           # Restart the backend container only
+./start.sh shell             # Open an interactive bash shell in the backend
+./start.sh argocd-ui         # Port-forward ArgoCD → http://localhost:8080
+./start.sh grafana-ui        # Port-forward Grafana → http://localhost:3001
 ```
+
+> ArgoCD admin password is written to `./data/argocd-password` by the bootstrap script.
+
+---
+
+## Sandbox environment
+
+### Pre-installed tools
+
+`kubectl` · `helm` · `argocd` · `k9s` · `python3` · `boto3` · `git` · `jq` · `curl` · `openssl` · `vim`
+
+### Shell aliases
+
+| Alias | Command |
+|-------|---------|
+| `k` | `kubectl` |
+| `kgp` | `kubectl get pods` |
+| `kgpa` | `kubectl get pods -A` |
+| `kgn` | `kubectl get nodes` |
+| `kgs` | `kubectl get svc` |
+| `kl` | `kubectl logs` |
+| `kd` | `kubectl describe` |
+| `kaf` | `kubectl apply -f` |
+| `agl` | `argocd app list` |
+| `ags` | `argocd app sync` |
+
+### Workspace files
+
+The `/workspace` directory is pre-populated with realistic sample files used across lessons. It persists between restarts — use it to save your own scripts and notes.
+
+| File | Purpose |
+|------|---------|
+| `app.log` | Structured app log with errors, OOMKills, restarts |
+| `pod.log` | Pod lifecycle log with CrashLoopBackOff sequence |
+| `access.log` | nginx access log with 4xx/5xx entries |
+| `deployment.yaml` | Sample Kubernetes Deployment manifest |
+| `values.yaml` | Helm values file with intentionally unpinned image tags |
+| `config.yaml` | App config referencing cluster-internal services |
+| `check_images.py` | Starter Python script (finds unpinned `latest` tags) |
+
+### Mock AWS environment
+
+boto3 lessons use a pre-configured mock AWS environment so you can learn the SDK without a real AWS account:
+
+```
+AWS_DEFAULT_REGION=eu-central-1
+AWS_ACCOUNT_ID=123456789012
+AWS_PROFILE=prod
+```
+
+---
+
+## What's pre-installed in the cluster
+
+The bootstrap container sets everything up on first start — you don't need to do anything manually.
+
+**ArgoCD** — two sample applications registered and syncing:
+- `web-app` → ArgoCD guestbook example
+- `monitoring-stack` → helm-guestbook example
+
+**External Secrets Operator** — a `ClusterSecretStore` named `fake-aws-secrets` with four pre-seeded fake keys for learning:
+```
+prod/db/password
+prod/harbor/robot-token
+prod/api/key
+prod/keycloak/admin
+```
+
+**Prometheus alerts** — two alerting rules in the `monitoring` namespace:
+- `PodCrashLooping` — fires when a pod restarts more than 3 times in 15 minutes
+- `PodNotReady` — fires when a pod stays unready for 5+ minutes
+
+**Sample workloads:**
+- `default/web-app` — 2-replica nginx deployment with a PodDisruptionBudget (healthy baseline)
+- `default/broken-app` — intentionally crash-looping busybox (for debugging practice)
+- `learning/api-server` — http-echo server used by Python and ESO lessons
+
+---
 
 ## Exposed ports
 
 | Port | Service | Notes |
 |------|---------|-------|
-| 3000 | Frontend (nginx) | Main UI |
-| 8000 | Backend (FastAPI) | API + WebSocket (also reachable directly) |
-| 8080 | ArgoCD UI | Only after `./start.sh argocd-ui` |
-| 3001 | Grafana | Only after `./start.sh grafana-ui` |
-| 9090 | Prometheus | Manual port-forward: `kubectl port-forward svc/monitoring-kube-prometheus-prometheus -n monitoring 9090:9090` |
+| 3000 | Frontend | Main UI |
+| 8000 | Backend (FastAPI) | API + WebSocket terminal |
+| 8080 | ArgoCD UI | After `./start.sh argocd-ui` |
+| 3001 | Grafana | After `./start.sh grafana-ui` (admin / prom-operator) |
+| 9090 | Prometheus | Manual: `kubectl port-forward svc/monitoring-kube-prometheus-prometheus -n monitoring 9090:9090` |
 
-ArgoCD admin password is written to `./data/argocd-password` by the bootstrap script.
+---
 
 ## Persistence
 
-Progress across lessons is saved to `./data/progress.json` on the host. Cluster state lives in the `k3s-server` Docker volume. Both survive `./start.sh stop` and are only removed by `./start.sh reset`.
+| What | Where | Survives `stop`? | Survives `reset`? |
+|------|-------|-----------------|------------------|
+| Lesson progress | `./data/progress.json` | Yes | No |
+| ArgoCD password | `./data/argocd-password` | Yes | No |
+| Cluster state | `k3s-server` Docker volume | Yes | No |
+| Workspace files | Inside container | No | No |
+
+---
 
 ## Resetting to a clean state
 
 ```bash
-./start.sh reset   # removes Docker volumes and ./data/.bootstrap-done
-./start.sh up      # rebuilds and re-bootstraps from scratch (~5 min)
+./start.sh reset   # removes Docker volumes and bootstrap flag
+./start.sh build   # rebuilds images and re-bootstraps (~5 min)
 ```
 
-## Project layout
+---
+
+## Architecture
+
+![Architecture diagram](architecture.svg)
+
+### Stack
+
+| Layer | Technology | Version |
+|-------|-----------|---------|
+| Cluster | k3s | v1.29.4 |
+| GitOps | ArgoCD | v2.10.5 |
+| Secrets | External Secrets Operator | latest chart |
+| Monitoring | kube-prometheus-stack | latest chart |
+| Backend | FastAPI + uvicorn | 0.111.0 / 0.29.0 |
+| Frontend | nginx alpine | — |
+| Terminal | xterm.js | 5.3.0 |
+
+### Project layout
 
 ```
 devops-learning-lab/
-├── start.sh                      # CLI wrapper for docker compose operations
+├── start.sh                      # CLI wrapper for all docker compose operations
 ├── docker-compose.yml            # Four services: k3s, bootstrap, backend, frontend
-├── data/                         # Mounted into all containers; holds progress + argocd creds
+├── data/                         # Persisted data: progress, ArgoCD credentials
 ├── backend/
 │   ├── main.py                   # FastAPI app + PTY WebSocket handler
-│   ├── requirements.txt          # fastapi, uvicorn, websockets
+│   ├── requirements.txt
 │   ├── Dockerfile                # Python 3.12, kubectl, helm, argocd, Python DevOps libs
-│   ├── Dockerfile.bootstrap      # alpine/k8s image for one-shot cluster setup
+│   ├── Dockerfile.bootstrap      # One-shot cluster setup (alpine/k8s)
 │   ├── lessons/
-│   │   ├── registry.py           # Ordered lesson list (22 entries)
-│   │   └── content/              # One JSON file per lesson
-│   │       ├── bash/             # bash-w1..w3
-│   │       ├── bash-advanced/    # bash-adv-w1..w2
-│   │       ├── python/           # python-w4..w12
-│   │       ├── python-advanced/  # py-adv-w1..w2
-│   │       ├── networking/
-│   │       ├── observability/
-│   │       ├── cicd/
-│   │       ├── terraform/
-│   │       ├── helm/
-│   │       └── docker/
+│   │   ├── registry.py           # Ordered lesson list — defines W1–W37 sequence
+│   │   └── content/              # One JSON file per lesson, organised by topic
 │   └── scripts/
 │       ├── bootstrap-cluster.sh  # Installs ArgoCD, ESO, Prometheus; deploys sample workloads
 │       ├── init-workspace.sh     # Populates /workspace with sample files
-│       └── help-devops.sh        # In-terminal quick reference command
+│       └── help-devops.sh        # In-terminal quick reference
 └── frontend/
     ├── index.html                # Single-page app: lesson viewer + xterm.js terminal
     ├── Dockerfile                # nginx alpine

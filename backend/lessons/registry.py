@@ -70,8 +70,8 @@ LESSON_ORDER = [
 
 def get_all_lessons() -> list:
     return [
-        {"key": key, "title": title, "phase": phase, "week": week, "category": cat}
-        for phase, week, key, title, cat, subdir in LESSON_ORDER
+        {"key": key, "title": title, "phase": phase, "week": i + 1, "category": cat}
+        for i, (phase, week, key, title, cat, subdir) in enumerate(LESSON_ORDER)
     ]
 
 

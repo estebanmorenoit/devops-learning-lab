@@ -565,6 +565,81 @@ body {
   transition: width .4s ease;
 }
 
+.dash-info {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 20px 24px;
+  margin-bottom: 24px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 32px;
+}
+
+.dash-info-section {
+  padding: 14px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.dash-info-section:nth-child(odd):last-child,
+.dash-info-section:nth-last-child(-n+2) {
+  border-bottom: none;
+}
+
+.dash-info-section-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.dash-info-section-title .dash-info-icon {
+  font-size: 13px;
+  opacity: .8;
+}
+
+.dash-info-section ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.dash-info-section li {
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.5;
+  padding-left: 16px;
+  position: relative;
+}
+
+.dash-info-section li::before {
+  content: "–";
+  position: absolute;
+  left: 0;
+  color: var(--border);
+}
+
+.dash-info-section li strong {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.dash-info-section li code {
+  color: var(--accent);
+  font-family: inherit;
+  font-weight: 600;
+  background: var(--bg);
+  border-radius: 3px;
+  padding: 0 4px;
+  font-size: 11px;
+}
+
 .dash-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
@@ -579,6 +654,8 @@ body {
   padding: 14px 16px;
   cursor: pointer;
   transition: border-color .15s;
+  display: flex;
+  flex-direction: column;
 }
 
 .dash-card:hover { border-color: var(--muted); }
@@ -621,6 +698,7 @@ body {
   flex-direction: column;
   gap: 3px;
   margin-bottom: 10px;
+  flex: 1;
 }
 
 .dash-lesson-row {
@@ -756,11 +834,6 @@ body {
     <!-- Terminal -->
     <div id="terminal-panel">
       <div class="term-header">
-        <div class="traffic-lights">
-          <div class="tl tl-r"></div>
-          <div class="tl tl-y"></div>
-          <div class="tl tl-g"></div>
-        </div>
         <span class="term-label">sandbox — bash</span>
         <span id="cluster-status" style="font-size:11px;color:var(--orange)">● k3s starting…</span>
         <span id="conn-status">● connected</span>
@@ -1127,6 +1200,42 @@ function showDashboard() {
     </div>
     <div class="dash-bar-wrap">
       <div class="dash-bar-fill" style="width:${pct}%"></div>
+    </div>
+    <div class="dash-info">
+      <div class="dash-info-section">
+        <div class="dash-info-section-title"><span class="dash-info-icon">◈</span> About this lab</div>
+        <ul>
+          <li>A <strong>real k3s Kubernetes cluster</strong> running inside Docker — no mocks, no simulators</li>
+          <li><strong>37 lessons</strong> across 12 topics: Linux, Git, Networking, Docker, Kubernetes, Cloud, IaC, CI/CD, GitOps, Security, Observability, and Bash/Python scripting</li>
+          <li>Each lesson pairs written theory with hands-on exercises you run directly in the live sandbox</li>
+        </ul>
+      </div>
+      <div class="dash-info-section">
+        <div class="dash-info-section-title"><span class="dash-info-icon">◎</span> The sandbox terminal</div>
+        <ul>
+          <li>The terminal panel on the right is a <strong>real bash shell</strong> inside the sandbox container — commands run against the live cluster</li>
+          <li>Use <strong>Split view</strong> (top-right toggle) to read the lesson and run commands side by side</li>
+          <li><code>kubectl</code>, <code>helm</code>, <code>argocd</code>, <code>k9s</code>, <code>python3</code>, and <code>git</code> are all pre-installed</li>
+          <li>Type <code>help-devops</code> in the terminal for a cheat-sheet of common commands</li>
+        </ul>
+      </div>
+      <div class="dash-info-section">
+        <div class="dash-info-section-title"><span class="dash-info-icon">↗</span> How to navigate</div>
+        <ul>
+          <li>Click any topic card or any lesson in the <strong>left sidebar</strong> to jump straight to it</li>
+          <li>Lessons are numbered <strong>W1 – W37</strong> — follow that order, later topics build on earlier ones</li>
+          <li>Hit <strong>Mark complete</strong> in the top bar of a lesson to track your progress</li>
+          <li>Progress is saved in your browser — pick up exactly where you left off</li>
+        </ul>
+      </div>
+      <div class="dash-info-section">
+        <div class="dash-info-section-title"><span class="dash-info-icon">⚑</span> Good to know</div>
+        <ul>
+          <li>The cluster takes <strong>3 – 5 minutes</strong> to bootstrap on first start — the status indicator turns green when it's ready</li>
+          <li>Your <code>/workspace</code> folder inside the sandbox persists between restarts — save scripts and notes there</li>
+          <li>Run <code>./start.sh reset</code> from your terminal to wipe the cluster and start completely fresh</li>
+        </ul>
+      </div>
     </div>
     <div class="dash-grid" id="dash-grid"></div>
     ${nextLesson ? `<button class="dash-continue-btn start" style="max-width:220px;padding:8px 20px;font-size:12px" onclick="loadLesson('${nextLesson.key}')">
