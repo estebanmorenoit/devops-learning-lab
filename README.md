@@ -1,9 +1,5 @@
 # DevOps Learning Lab
 
-> A self-hosted, interactive lab for learning the full DevOps stack — with a **real Kubernetes cluster** running inside Docker on your laptop.
-
-Every lesson includes written theory and hands-on exercises you complete in a live bash terminal connected to a real k3s cluster. No simulators, no sandboxed abstractions — you run actual `kubectl`, `helm`, `argocd`, and Python commands against real infrastructure.
-
 ![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?style=flat&logo=docker&logoColor=white)
 ![k3s](https://img.shields.io/badge/k3s-Kubernetes-326CE5?style=flat&logo=kubernetes&logoColor=white)
 ![ArgoCD](https://img.shields.io/badge/ArgoCD-GitOps-EF7B4D?style=flat&logo=argo&logoColor=white)
@@ -14,6 +10,10 @@ Every lesson includes written theory and hands-on exercises you complete in a li
 ![Python](https://img.shields.io/badge/Python-scripting-3776AB?style=flat&logo=python&logoColor=white)
 ![nginx](https://img.shields.io/badge/nginx-frontend-009639?style=flat&logo=nginx&logoColor=white)
 ![37 lessons](https://img.shields.io/badge/lessons-37-blueviolet?style=flat)
+
+> A self-hosted, interactive lab for learning the full DevOps stack — with a **real Kubernetes cluster** running inside Docker on your laptop.
+
+Every lesson includes written theory and hands-on exercises you complete in a live bash terminal connected to a real k3s cluster. No simulators, no sandboxed abstractions — you run actual `kubectl`, `helm`, `argocd`, and Python commands against real infrastructure.
 
 ---
 
