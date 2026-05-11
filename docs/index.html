@@ -1,0 +1,640 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DevOps Learning Lab</title>
+  <meta name="description" content="A self-hosted, interactive DevOps learning lab — 37 lessons, a real k3s Kubernetes cluster, live in-browser terminal, and pre-loaded ArgoCD, Prometheus, and Grafana. Runs entirely in Docker." />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:       #0d1117;
+      --surface:  #161b22;
+      --border:   #30363d;
+      --text:     #e6edf3;
+      --muted:    #8b949e;
+      --accent:   #58a6ff;
+      --green:    #3fb950;
+      --orange:   #f0883e;
+      --purple:   #d2a8ff;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+      line-height: 1.6;
+    }
+
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    /* ── Nav ── */
+    nav {
+      position: sticky;
+      top: 0;
+      background: rgba(13,17,23,.92);
+      backdrop-filter: blur(8px);
+      border-bottom: 1px solid var(--border);
+      padding: 0 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 56px;
+      z-index: 100;
+    }
+    .nav-brand {
+      font-weight: 700;
+      font-size: 15px;
+      color: var(--text);
+    }
+    .nav-links { display: flex; gap: 24px; font-size: 14px; color: var(--muted); }
+    .nav-links a { color: var(--muted); }
+    .nav-links a:hover { color: var(--text); text-decoration: none; }
+    .nav-cta {
+      background: var(--accent);
+      color: #0d1117;
+      font-weight: 600;
+      font-size: 13px;
+      padding: 6px 16px;
+      border-radius: 6px;
+    }
+    .nav-cta:hover { opacity: .88; text-decoration: none; }
+
+    /* ── Hero ── */
+    .hero {
+      max-width: 860px;
+      margin: 0 auto;
+      padding: 96px 24px 72px;
+      text-align: center;
+    }
+    .hero-label {
+      display: inline-block;
+      background: rgba(88,166,255,.12);
+      border: 1px solid rgba(88,166,255,.3);
+      color: var(--accent);
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      padding: 4px 12px;
+      border-radius: 20px;
+      margin-bottom: 24px;
+    }
+    .hero h1 {
+      font-size: clamp(32px, 6vw, 56px);
+      font-weight: 800;
+      line-height: 1.15;
+      letter-spacing: -.02em;
+      margin-bottom: 20px;
+    }
+    .hero h1 span { color: var(--accent); }
+    .hero p {
+      font-size: 18px;
+      color: var(--muted);
+      max-width: 640px;
+      margin: 0 auto 36px;
+    }
+    .hero-actions { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 22px;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity .15s;
+    }
+    .btn:hover { opacity: .85; text-decoration: none; }
+    .btn-primary { background: var(--accent); color: #0d1117; }
+    .btn-secondary { background: var(--surface); color: var(--text); border: 1px solid var(--border); }
+
+    /* ── Badges ── */
+    .badges {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      justify-content: center;
+      margin-top: 48px;
+    }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 4px 12px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .badge-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    /* ── Section wrapper ── */
+    .section {
+      max-width: 1000px;
+      margin: 0 auto;
+      padding: 72px 24px;
+    }
+    .section-label {
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 12px;
+    }
+    .section h2 {
+      font-size: clamp(24px, 4vw, 36px);
+      font-weight: 700;
+      margin-bottom: 16px;
+    }
+    .section-lead {
+      font-size: 16px;
+      color: var(--muted);
+      max-width: 620px;
+      margin-bottom: 48px;
+    }
+    hr.divider {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 0;
+    }
+
+    /* ── Feature grid ── */
+    .feature-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 16px;
+    }
+    .feature-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 24px;
+    }
+    .feature-icon {
+      font-size: 22px;
+      margin-bottom: 12px;
+    }
+    .feature-card h3 {
+      font-size: 15px;
+      font-weight: 700;
+      margin-bottom: 6px;
+    }
+    .feature-card p {
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.55;
+    }
+
+    /* ── Curriculum table ── */
+    .curriculum-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+    }
+    .curriculum-table th {
+      text-align: left;
+      padding: 10px 16px;
+      border-bottom: 1px solid var(--border);
+      color: var(--muted);
+      font-weight: 600;
+      font-size: 12px;
+      letter-spacing: .05em;
+      text-transform: uppercase;
+    }
+    .curriculum-table td {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+      vertical-align: top;
+    }
+    .curriculum-table tr:last-child td { border-bottom: none; }
+    .curriculum-table tr:hover td { background: rgba(255,255,255,.02); }
+    .week-badge {
+      display: inline-block;
+      background: rgba(88,166,255,.12);
+      color: var(--accent);
+      font-size: 11px;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 4px;
+      white-space: nowrap;
+    }
+    .topic-name { font-weight: 600; }
+    .lesson-list { color: var(--muted); font-size: 13px; }
+
+    /* ── Stack grid ── */
+    .stack-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 12px;
+    }
+    .stack-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px 20px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .stack-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .stack-card-text { }
+    .stack-card-name { font-size: 14px; font-weight: 700; }
+    .stack-card-role { font-size: 12px; color: var(--muted); }
+
+    /* ── Quick start ── */
+    .quickstart-wrap {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+      align-items: start;
+    }
+    @media (max-width: 680px) { .quickstart-wrap { grid-template-columns: 1fr; } }
+    .qs-step {
+      display: flex;
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+    .qs-num {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: rgba(88,166,255,.15);
+      color: var(--accent);
+      font-size: 13px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+    .qs-step h3 { font-size: 14px; font-weight: 700; margin-bottom: 4px; }
+    .qs-step p { font-size: 13px; color: var(--muted); }
+    .code-block {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 20px 24px;
+      font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
+      font-size: 13px;
+      line-height: 1.7;
+      color: var(--text);
+      overflow-x: auto;
+    }
+    .code-block .c { color: var(--muted); }
+    .code-block .cmd { color: var(--green); }
+
+    /* ── Footer ── */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 32px 24px;
+      text-align: center;
+      font-size: 13px;
+      color: var(--muted);
+    }
+    footer a { color: var(--muted); }
+    footer a:hover { color: var(--text); }
+
+    @media (max-width: 600px) {
+      .nav-links { display: none; }
+      .hero { padding: 64px 16px 48px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- Nav -->
+<nav>
+  <span class="nav-brand">DevOps Learning Lab</span>
+  <div class="nav-links">
+    <a href="#features">Features</a>
+    <a href="#curriculum">Curriculum</a>
+    <a href="#quickstart">Quick start</a>
+    <a href="#stack">Stack</a>
+  </div>
+  <a class="btn nav-cta" href="https://github.com/estebanmorenoit/devops-learning-lab">View on GitHub</a>
+</nav>
+
+<!-- Hero -->
+<section class="hero">
+  <div class="hero-label">Self-hosted · Open source · 37 lessons</div>
+  <h1>Learn DevOps on a <span>real</span> Kubernetes cluster</h1>
+  <p>
+    An interactive, self-hosted lab that runs a live k3s cluster inside Docker on your laptop —
+    with an in-browser terminal, structured lessons, and pre-loaded tooling. No simulators. No cloud bills.
+  </p>
+  <div class="hero-actions">
+    <a class="btn btn-primary" href="https://github.com/estebanmorenoit/devops-learning-lab">
+      ↗ Get started on GitHub
+    </a>
+    <a class="btn btn-secondary" href="#curriculum">
+      View curriculum
+    </a>
+  </div>
+
+  <div class="badges">
+    <span class="badge"><span class="badge-dot" style="background:#2496ED"></span>Docker Compose</span>
+    <span class="badge"><span class="badge-dot" style="background:#326CE5"></span>k3s · Kubernetes</span>
+    <span class="badge"><span class="badge-dot" style="background:#EF7B4D"></span>ArgoCD · GitOps</span>
+    <span class="badge"><span class="badge-dot" style="background:#E6522C"></span>Prometheus</span>
+    <span class="badge"><span class="badge-dot" style="background:#F46800"></span>Grafana</span>
+    <span class="badge"><span class="badge-dot" style="background:#6DB33F"></span>External Secrets</span>
+    <span class="badge"><span class="badge-dot" style="background:#009688"></span>FastAPI</span>
+    <span class="badge"><span class="badge-dot" style="background:#3776AB"></span>Python</span>
+    <span class="badge"><span class="badge-dot" style="background:#009639"></span>nginx</span>
+  </div>
+</section>
+
+<hr class="divider" />
+
+<!-- Features -->
+<section class="section" id="features">
+  <div class="section-label">What you get</div>
+  <h2>Everything you need to practise real DevOps</h2>
+  <p class="section-lead">
+    Every component runs locally. Open the browser, pick a lesson, and start running commands
+    against live infrastructure within minutes.
+  </p>
+  <div class="feature-grid">
+    <div class="feature-card">
+      <div class="feature-icon">☸</div>
+      <h3>Real Kubernetes cluster</h3>
+      <p>A k3s cluster boots inside Docker with ArgoCD, Prometheus, Grafana, and External Secrets Operator pre-installed. No mocks, no sandboxed abstractions.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">⌨</div>
+      <h3>Live in-browser terminal</h3>
+      <p>A real bash shell connects directly to the sandbox container. Run <code>kubectl</code>, <code>helm</code>, <code>argocd</code>, and Python commands without leaving the UI.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">◫</div>
+      <h3>Split-view lessons</h3>
+      <p>Read theory on the left, run commands on the right — at the same time. Toggle between Split, Theory-only, and Terminal-only views.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">◈</div>
+      <h3>37 structured lessons</h3>
+      <p>12 topics ordered from Linux fundamentals through to Kubernetes, GitOps, Observability, Bash scripting, Python automation, and real-world projects.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">✓</div>
+      <h3>Progress tracking</h3>
+      <p>Mark lessons complete as you go. Progress is saved locally and persists between restarts — pick up exactly where you left off.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">⚡</div>
+      <h3>One-command setup</h3>
+      <p>Clone the repo and run <code>./start.sh build</code>. The bootstrap container handles everything — no manual cluster configuration required.</p>
+    </div>
+  </div>
+</section>
+
+<hr class="divider" />
+
+<!-- Curriculum -->
+<section class="section" id="curriculum">
+  <div class="section-label">Curriculum</div>
+  <h2>37 lessons across 12 topics</h2>
+  <p class="section-lead">
+    Lessons are numbered W1–W37 and ordered so that later topics build on earlier ones.
+  </p>
+  <table class="curriculum-table">
+    <thead>
+      <tr>
+        <th>Weeks</th>
+        <th>Topic</th>
+        <th>Lessons</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><span class="week-badge">W1–W2</span></td>
+        <td class="topic-name">Linux &amp; OS</td>
+        <td class="lesson-list">Linux Fundamentals · Terminal Mastery &amp; System Monitoring</td>
+      </tr>
+      <tr>
+        <td><span class="week-badge">W3</span></td>
+        <td class="topic-name">Git</td>
+        <td class="lesson-list">Git Fundamentals</td>
+      </tr>
+      <tr>
+        <td><span class="week-badge">W4–W6</span></td>
+        <td class="topic-name">Networking</td>
+        <td class="lesson-list">Networking &amp; Protocols · TLS, Certificates &amp; PKI · Web Servers, Reverse Proxies &amp; Load Balancers</td>
+      </tr>
+      <tr>
+        <td><span class="week-badge">W7</span></td>
+        <td class="topic-name">Docker</td>
+        <td class="lesson-list">Images, Layers &amp; Networking</td>
+      </tr>
+      <tr>
+        <td><span class="week-badge">W8–W9</span></td>
+        <td class="topic-name">Kubernetes</td>
+        <td class="lesson-list">Core Concepts · Operations</td>
+      </tr>
+      <tr>
+        <td><span class="week-badge">W10</span></td>
+        <td class="topic-name">Cloud / AWS</td>
+        <td class="lesson-list">Cloud Providers &amp; AWS Fundamentals</td>
+      </tr>
+      <tr>
+        <td><span class="week-badge">W11–W12</span></td>
+        <td class="topic-name">IaC</td>
+        <td class="lesson-list">Terraform Modules &amp; State · Configuration Management with Ansible</td>
+      </tr>
+      <tr>
+        <td><span class="week-badge">W13–W15</span></td>
+        <td class="topic-name">CI/CD &amp; Helm</td>
+        <td class="lesson-list">GitLab CI/CD — Pipelines &amp; Caching · CI/CD with GitHub Actions · Helm Chart Authoring</td>
+      </tr>
+      <tr>
+        <td><span class="week-badge">W16</span></td>
+        <td class="topic-name">GitOps</td>
+        <td class="lesson-list">GitOps &amp; ArgoCD</td>
+      </tr>
+      <tr>
+        <td><span class="week-badge">W17</span></td>
+        <td class="topic-name">Security</td>
+        <td class="lesson-list">Secret Management</td>
+      </tr>
+      <tr>
+        <td><span class="week-badge">W18–W19</span></td>
+        <td class="topic-name">Observability</td>
+        <td class="lesson-list">Prometheus &amp; PromQL · Logs Management</td>
+      </tr>
+      <tr>
+        <td><span class="week-badge">W20–W26</span></td>
+        <td class="topic-name">Bash</td>
+        <td class="lesson-list">Defensive Scripting · Text &amp; Data Wrangling · Idempotent Scripts · Reusable Libraries · kubectl Scripting · Arrays · Advanced String Processing</td>
+      </tr>
+      <tr>
+        <td><span class="week-badge">W27–W33</span></td>
+        <td class="topic-name">Python</td>
+        <td class="lesson-list">Basics for DevOps · subprocess · boto3 · Kubernetes Client · REST APIs · OOP · Testing</td>
+      </tr>
+      <tr>
+        <td><span class="week-badge">W34–W37</span></td>
+        <td class="topic-name">Projects</td>
+        <td class="lesson-list">GitLab CI Helper · ESO Secret Rotation · Namespace &amp; Cost Hygiene CLI · Keycloak &amp; On-Prem Ops</td>
+      </tr>
+    </tbody>
+  </table>
+</section>
+
+<hr class="divider" />
+
+<!-- Quick start -->
+<section class="section" id="quickstart">
+  <div class="section-label">Quick start</div>
+  <h2>Up and running in minutes</h2>
+  <p class="section-lead">Requires Docker with Compose v2 and ~4 GB of free RAM. Works on macOS, Linux, and Windows (WSL2).</p>
+  <div class="quickstart-wrap">
+    <div>
+      <div class="qs-step">
+        <div class="qs-num">1</div>
+        <div>
+          <h3>Clone the repo</h3>
+          <p>Download the project to your machine.</p>
+        </div>
+      </div>
+      <div class="qs-step">
+        <div class="qs-num">2</div>
+        <div>
+          <h3>Build and start</h3>
+          <p>Run <code>./start.sh build</code>. Images are built and the cluster bootstraps automatically.</p>
+        </div>
+      </div>
+      <div class="qs-step">
+        <div class="qs-num">3</div>
+        <div>
+          <h3>Open the lab</h3>
+          <p>Navigate to <strong>http://localhost:3000</strong>. The status indicator turns green once the cluster is ready (3–5 min on first run).</p>
+        </div>
+      </div>
+      <div class="qs-step">
+        <div class="qs-num">4</div>
+        <div>
+          <h3>Start learning</h3>
+          <p>Pick any lesson from the dashboard or sidebar and start running commands in the live terminal.</p>
+        </div>
+      </div>
+    </div>
+    <div class="code-block">
+      <span class="c"># Clone</span><br>
+      <span class="cmd">git clone</span> https://github.com/estebanmorenoit/<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;devops-learning-lab.git<br>
+      <span class="cmd">cd</span> devops-learning-lab<br>
+      <br>
+      <span class="c"># Build images and start cluster</span><br>
+      <span class="cmd">./start.sh build</span><br>
+      <br>
+      <span class="c"># Open the lab</span><br>
+      <span class="cmd">open</span> http://localhost:3000<br>
+      <br>
+      <span class="c"># Watch bootstrap progress</span><br>
+      <span class="cmd">./start.sh logs-bootstrap</span>
+    </div>
+  </div>
+</section>
+
+<hr class="divider" />
+
+<!-- Stack -->
+<section class="section" id="stack">
+  <div class="section-label">Technology stack</div>
+  <h2>Everything runs locally</h2>
+  <p class="section-lead">No cloud account required. The full stack boots inside Docker Compose on your laptop.</p>
+  <div class="stack-grid">
+    <div class="stack-card">
+      <span class="stack-dot" style="background:#326CE5"></span>
+      <div class="stack-card-text">
+        <div class="stack-card-name">k3s v1.29.4</div>
+        <div class="stack-card-role">Kubernetes cluster</div>
+      </div>
+    </div>
+    <div class="stack-card">
+      <span class="stack-dot" style="background:#EF7B4D"></span>
+      <div class="stack-card-text">
+        <div class="stack-card-name">ArgoCD v2.10.5</div>
+        <div class="stack-card-role">GitOps</div>
+      </div>
+    </div>
+    <div class="stack-card">
+      <span class="stack-dot" style="background:#6DB33F"></span>
+      <div class="stack-card-text">
+        <div class="stack-card-name">External Secrets Operator</div>
+        <div class="stack-card-role">Secret management</div>
+      </div>
+    </div>
+    <div class="stack-card">
+      <span class="stack-dot" style="background:#E6522C"></span>
+      <div class="stack-card-text">
+        <div class="stack-card-name">Prometheus</div>
+        <div class="stack-card-role">Monitoring &amp; alerting</div>
+      </div>
+    </div>
+    <div class="stack-card">
+      <span class="stack-dot" style="background:#F46800"></span>
+      <div class="stack-card-text">
+        <div class="stack-card-name">Grafana</div>
+        <div class="stack-card-role">Dashboards</div>
+      </div>
+    </div>
+    <div class="stack-card">
+      <span class="stack-dot" style="background:#009688"></span>
+      <div class="stack-card-text">
+        <div class="stack-card-name">FastAPI + uvicorn</div>
+        <div class="stack-card-role">Backend &amp; PTY WebSocket</div>
+      </div>
+    </div>
+    <div class="stack-card">
+      <span class="stack-dot" style="background:#009639"></span>
+      <div class="stack-card-text">
+        <div class="stack-card-name">nginx alpine</div>
+        <div class="stack-card-role">Frontend</div>
+      </div>
+    </div>
+    <div class="stack-card">
+      <span class="stack-dot" style="background:#e6edf3"></span>
+      <div class="stack-card-text">
+        <div class="stack-card-name">xterm.js 5.3.0</div>
+        <div class="stack-card-role">In-browser terminal</div>
+      </div>
+    </div>
+    <div class="stack-card">
+      <span class="stack-dot" style="background:#3776AB"></span>
+      <div class="stack-card-text">
+        <div class="stack-card-name">Python 3.12</div>
+        <div class="stack-card-role">Scripting lessons</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Footer -->
+<footer>
+  <p>
+    Built by <a href="https://github.com/estebanmorenoit" target="_blank">Esteban Moreno</a> ·
+    <a href="https://github.com/estebanmorenoit/devops-learning-lab" target="_blank">GitHub</a> ·
+    MIT License
+  </p>
+</footer>
+
+</body>
+</html>
