@@ -6,6 +6,12 @@ Every lesson includes written theory and hands-on exercises you complete in a li
 
 ---
 
+## Architecture
+
+![Architecture diagram](architecture.svg)
+
+---
+
 ## What you get
 
 - **37 structured lessons** across 12 topics, ordered from Linux basics to GitOps and Observability
@@ -206,11 +212,7 @@ prod/keycloak/admin
 
 ---
 
-## Architecture
-
-![Architecture diagram](architecture.svg)
-
-### Stack
+## Stack
 
 | Layer | Technology | Version |
 |-------|-----------|---------|
