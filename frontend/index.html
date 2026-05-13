@@ -153,6 +153,30 @@ body {
 
 .nav-check.done { background: var(--green); border-color: var(--green); color: #0d1117; }
 
+.nav-subitem {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 16px 4px 34px;
+  cursor: pointer;
+  font-size: 11px;
+  color: var(--muted);
+  border-left: 2px solid transparent;
+  transition: all .1s;
+}
+.nav-subitem:hover { background: var(--surface2); color: var(--text); }
+.nav-subitem.active { color: var(--accent); background: var(--surface2); }
+
+.nav-subcheck {
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  border: 1.5px solid var(--border);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 6px;
+  flex-shrink: 0;
+}
+.nav-subcheck.done { background: var(--green); border-color: var(--green); color: #0d1117; }
+
 .nav-week {
   font-size: 9px;
   padding: 1px 5px;
@@ -239,6 +263,17 @@ body {
 .tb-gitops        { background: #0d2b1a; color: #3fb950; }
 .tb-security      { background: #2b0d0d; color: #ff7b72; }
 .tb-observability { background: #1a0a2e; color: #d2a8ff; }
+
+.tb-subtask {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: rgba(255,255,255,.08);
+  color: var(--muted);
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
 .tb-bash          { background: #1a2f4e; color: var(--bash-col); }
 .tb-bash-advanced { background: #1a2f4e; color: #79c0ff; }
 .tb-python        { background: #2d2600; color: var(--py-col); }
@@ -782,19 +817,6 @@ body {
 .search-input::placeholder { color: var(--muted); }
 .search-input:focus { border-color: var(--accent); }
 
-/* ── Difficulty badges ──────────────────────────────────── */
-.diff-badge {
-  font-size: 9px;
-  font-weight: 600;
-  padding: 1px 6px;
-  border-radius: 8px;
-  text-transform: uppercase;
-  letter-spacing: .06em;
-  flex-shrink: 0;
-}
-.diff-beginner     { background: rgba(63,185,80,.15);  color: #56d364; border: 1px solid rgba(63,185,80,.3); }
-.diff-intermediate { background: rgba(227,179,65,.15); color: var(--yellow); border: 1px solid rgba(227,179,65,.3); }
-.diff-advanced     { background: rgba(248,81,73,.15);  color: var(--red); border: 1px solid rgba(248,81,73,.3); }
 
 /* ── Prerequisites bar ──────────────────────────────────── */
 .prereq-bar {
@@ -1109,7 +1131,7 @@ body {
   <div id="topbar">
     <button class="home-btn" onclick="showDashboard()" title="Dashboard">⌂ Home</button>
     <span class="tb-badge" id="tb-badge" style="display:none"></span>
-    <span class="diff-badge" id="tb-diff" style="display:none"></span>
+    <span class="tb-subtask" id="tb-subtask" style="display:none"></span>
     <span class="tb-title" id="tb-title">DevOps Learning</span>
     <span class="tb-duration" id="tb-duration"></span>
     <div class="feedback-wrap" id="feedback-wrap" style="display:none">
@@ -1153,6 +1175,7 @@ body {
         <span id="cluster-status" style="font-size:11px;color:var(--orange)">● k3s starting…</span>
         <span id="conn-status">● connected</span>
         <button class="term-clear-btn" onclick="clearTerm()">clear</button>
+        <button class="term-clear-btn" onclick="clearTermHistory()" title="Clear saved session history">clear history</button>
       </div>
       <div id="terminal-container"></div>
     </div>
@@ -1186,6 +1209,7 @@ function sectionFor(phase) {
 // ── State ──────────────────────────────────────────────────────────────────
 let lessons = [];
 let currentKey = null;
+let currentSubtask = "lesson"; // 'lesson' | 'quiz' | 'challenge'
 let progress = {};
 let ws = null;
 let term = null;
@@ -1390,16 +1414,23 @@ async function saveProgress(key, done) {
   if (showingDashboard) showDashboard();
 }
 
+function progressKey(key, subtask) {
+  return subtask && subtask !== "lesson" ? `${key}.${subtask}` : key;
+}
+
 function toggleDone() {
   if (!currentKey) return;
-  saveProgress(currentKey, !progress[currentKey]);
+  const pk = progressKey(currentKey, currentSubtask);
+  saveProgress(pk, !progress[pk]);
   renderDoneBtn();
 }
 
 function renderDoneBtn() {
   const btn = document.getElementById("done-btn");
-  const done = progress[currentKey];
-  btn.textContent = done ? "✓ Completed" : "Mark complete";
+  const pk = progressKey(currentKey, currentSubtask);
+  const done = progress[pk];
+  const label = currentSubtask === "quiz" ? "Quiz" : currentSubtask === "challenge" ? "Challenge" : "lesson";
+  btn.textContent = done ? `✓ ${label} done` : `Mark ${label} done`;
   btn.className = "tb-done-btn" + (done ? " done" : "");
 }
 
@@ -1428,10 +1459,10 @@ async function loadLessons() {
 }
 
 function renderNav() {
+  const totalTasks = lessons.reduce((n, l) => n + 1 + (l.subtasks || []).length, 0);
   const done_count = Object.values(progress).filter(Boolean).length;
-  const total = lessons.length;
-  document.getElementById("prog-fill").style.width = total ? `${done_count/total*100}%` : "0%";
-  document.getElementById("prog-text").textContent = `${done_count} of ${total} complete`;
+  document.getElementById("prog-fill").style.width = totalTasks ? `${done_count/totalTasks*100}%` : "0%";
+  document.getElementById("prog-text").textContent = `${done_count} of ${totalTasks} complete`;
 
   const container = document.getElementById("nav-scroll");
   container.innerHTML = "";
@@ -1467,19 +1498,29 @@ function renderNav() {
         if (!haystack.includes(searchQuery)) continue;
       }
       visibleCount++;
+      const isActive = !showingDashboard && currentKey === l.key;
       const item = document.createElement("div");
-      item.className = "nav-item" + (!showingDashboard && currentKey === l.key ? " active" : "");
-      const diffHtml = l.difficulty
-        ? `<span class="diff-badge diff-${l.difficulty}" style="font-size:8px;padding:1px 4px;margin-right:2px">${l.difficulty[0].toUpperCase()}</span>`
-        : "";
+      item.className = "nav-item" + (isActive && currentSubtask === "lesson" ? " active" : "");
       item.innerHTML = `
         <div class="nav-check ${progress[l.key] ? 'done' : ''}">${progress[l.key] ? '✓' : ''}</div>
         <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${l.title}</span>
-        ${diffHtml}
         <span class="nav-week wk-${l.phase}">W${l.week}</span>
       `;
-      item.addEventListener("click", () => loadLesson(l.key));
+      item.addEventListener("click", () => loadLesson(l.key, "lesson"));
       grp.appendChild(item);
+
+      // Sub-items for quiz / challenge
+      for (const st of (l.subtasks || [])) {
+        const pk = progressKey(l.key, st);
+        const sub = document.createElement("div");
+        sub.className = "nav-subitem" + (isActive && currentSubtask === st ? " active" : "");
+        sub.innerHTML = `
+          <div class="nav-subcheck ${progress[pk] ? 'done' : ''}">${progress[pk] ? '✓' : ''}</div>
+          <span>${st === "quiz" ? "Quiz" : "Challenge"}</span>
+        `;
+        sub.addEventListener("click", e => { e.stopPropagation(); loadLesson(l.key, st); });
+        grp.appendChild(sub);
+      }
     }
     if (searchQuery && visibleCount === 0) continue;
     container.appendChild(grp);
@@ -1493,7 +1534,7 @@ function showDashboard() {
 
   // Topbar
   document.getElementById("tb-badge").style.display = "none";
-  document.getElementById("tb-diff").style.display = "none";
+  document.getElementById("tb-subtask").style.display = "none";
   document.getElementById("tb-title").textContent = "DevOps Learning";
   document.getElementById("tb-duration").textContent = "";
   document.getElementById("done-btn").style.display = "none";
@@ -1502,9 +1543,9 @@ function showDashboard() {
 
   renderNav();
 
+  const totalTasks = lessons.reduce((n, l) => n + 1 + (l.subtasks || []).length, 0);
   const done_count = Object.values(progress).filter(Boolean).length;
-  const total = lessons.length;
-  const pct = total ? Math.round(done_count / total * 100) : 0;
+  const pct = totalTasks ? Math.round(done_count / totalTasks * 100) : 0;
 
   // Build section lesson lists
   const sectionLessons = new Map(SECTIONS.map(s => [s.id, []]));
@@ -1528,7 +1569,7 @@ function showDashboard() {
       </div>
       <div class="dash-total">
         <div class="dash-total-num">${pct}%</div>
-        <div class="dash-total-label">${done_count} / ${total} lessons</div>
+        <div class="dash-total-label">${done_count} / ${totalTasks} tasks</div>
       </div>
     </div>
     <div class="dash-bar-wrap">
@@ -1624,10 +1665,15 @@ function showDashboard() {
 }
 
 // ── Load lesson ────────────────────────────────────────────────────────────
-async function loadLesson(key) {
+async function loadLesson(key, subtask = "lesson") {
   if (!key) return;
   showingDashboard = false;
+  if (currentKey !== key) {
+    await termHistorySetLesson(key);
+    termHistoryRestore();
+  }
   currentKey = key;
+  currentSubtask = subtask;
   renderNav();
 
   const lesson = await apiFetch(`/api/lessons/${key}`);
@@ -1639,22 +1685,21 @@ async function loadLesson(key) {
   badge.className = `tb-badge tb-${lesson.phase}`;
   badge.textContent = lesson.category;
 
-  const diffBadge = document.getElementById("tb-diff");
-  const diff = lesson.difficulty;
-  if (diff) {
-    diffBadge.textContent = diff;
-    diffBadge.className = `diff-badge diff-${diff}`;
-    diffBadge.style.display = "";
+  const stPill = document.getElementById("tb-subtask");
+  if (subtask !== "lesson") {
+    stPill.textContent = subtask;
+    stPill.style.display = "";
   } else {
-    diffBadge.style.display = "none";
+    stPill.style.display = "none";
   }
 
   document.getElementById("tb-title").textContent = lesson.title;
   document.getElementById("tb-duration").textContent = lesson.duration || "";
   document.getElementById("done-btn").style.display = "";
-  document.getElementById("feedback-wrap").style.display = "";
-  renderFeedbackBtns(key);
-  document.getElementById("panel-header-label").textContent = "Theory & Examples";
+  document.getElementById("feedback-wrap").style.display = subtask === "lesson" ? "" : "none";
+  if (subtask === "lesson") renderFeedbackBtns(key);
+  document.getElementById("panel-header-label").textContent =
+    subtask === "quiz" ? "Quiz" : subtask === "challenge" ? "Challenge" : "Theory & Examples";
   renderDoneBtn();
 
   // Show lesson content, hide dashboard
@@ -1680,8 +1725,14 @@ async function loadLesson(key) {
   summary.textContent = lesson.summary;
   lessonEl.appendChild(summary);
 
-  for (let i = 0; i < lesson.sections.length; i++) {
-    const sec = lesson.sections[i];
+  const visibleSections = lesson.sections.filter(s => {
+    if (subtask === "quiz")      return s.type === "quiz";
+    if (subtask === "challenge") return s.type === "challenge";
+    return s.type !== "quiz" && s.type !== "challenge";
+  });
+
+  for (let i = 0; i < visibleSections.length; i++) {
+    const sec = visibleSections[i];
     const wrap = document.createElement("div");
     wrap.className = "section-wrap";
 
@@ -1706,7 +1757,7 @@ async function loadLesson(key) {
 
     lessonEl.appendChild(wrap);
 
-    if (i < lesson.sections.length - 1) {
+    if (i < visibleSections.length - 1) {
       const hr = document.createElement("hr");
       hr.className = "section-divider";
       lessonEl.appendChild(hr);
@@ -1895,10 +1946,32 @@ const resizeObs = new ResizeObserver(() => { if (fitAddon) fitAddon.fit(); });
 resizeObs.observe(document.getElementById("terminal-container"));
 
 // ── Terminal history persistence ──────────────────────────────────────────
-const TERM_HISTORY_KEY = "devops-lab-term-history";
-const TERM_HISTORY_MAX = 80 * 1024; // 80 KB rolling buffer
+const TERM_HISTORY_MAX = 80 * 1024; // 80 KB rolling buffer (uncompressed)
+let termHistoryKey = "devops-lab-term-history"; // keyed per lesson
 let termOutputBuffer = [];
 let termOutputSize = 0;
+let termSaveTimer = null;
+
+async function _compress(str) {
+  const enc = new TextEncoder();
+  const cs = new CompressionStream("gzip");
+  const writer = cs.writable.getWriter();
+  writer.write(enc.encode(str));
+  writer.close();
+  const buf = await new Response(cs.readable).arrayBuffer();
+  return btoa(String.fromCharCode(...new Uint8Array(buf)));
+}
+
+async function _decompress(b64) {
+  const bin = atob(b64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  const ds = new DecompressionStream("gzip");
+  const writer = ds.writable.getWriter();
+  writer.write(bytes);
+  writer.close();
+  return new TextDecoder().decode(await new Response(ds.readable).arrayBuffer());
+}
 
 function termHistorySave(data) {
   termOutputBuffer.push(data);
@@ -1906,23 +1979,63 @@ function termHistorySave(data) {
   while (termOutputSize > TERM_HISTORY_MAX && termOutputBuffer.length > 0) {
     termOutputSize -= termOutputBuffer.shift().length;
   }
+  clearTimeout(termSaveTimer);
+  termSaveTimer = setTimeout(async () => {
+    try {
+      const json = JSON.stringify({ ts: Date.now(), buf: termOutputBuffer });
+      const compressed = await _compress(json);
+      localStorage.setItem(termHistoryKey, compressed);
+    } catch(e) {}
+  }, 2000);
+}
+
+async function termHistoryRestore() {
   try {
-    localStorage.setItem(TERM_HISTORY_KEY, JSON.stringify({ ts: Date.now(), buf: termOutputBuffer }));
+    const stored = localStorage.getItem(termHistoryKey);
+    if (!stored) return;
+    let parsed;
+    try {
+      parsed = JSON.parse(await _decompress(stored));
+    } catch(e) {
+      parsed = JSON.parse(stored); // fallback: uncompressed legacy format
+    }
+    const { ts, buf } = parsed;
+    if (!buf || !buf.length) return;
+    if (Date.now() - ts > 24 * 3600 * 1000) { localStorage.removeItem(termHistoryKey); return; }
+    const ago = (() => {
+      const diff = Math.round((Date.now() - ts) / 60000);
+      if (diff < 2) return "just now";
+      if (diff < 60) return `${diff} minutes ago`;
+      const h = Math.round(diff / 60);
+      return h === 1 ? "1 hour ago" : `${h} hours ago`;
+    })();
+    term.write(`\x1b[90m── restoring session from ${ago} ──\x1b[0m\r\n`);
+    for (const chunk of buf) term.write(chunk.replace(/\n/g, "\r\n"));
+    term.write(`\x1b[90m${"─".repeat(36 + ago.length)}\x1b[0m\r\n`);
+    // Buffer starts empty — only new output from this session is saved.
   } catch(e) {}
 }
 
-function termHistoryRestore() {
+async function termHistorySetLesson(key) {
+  // Flush current buffer before switching keys
+  clearTimeout(termSaveTimer);
   try {
-    const stored = localStorage.getItem(TERM_HISTORY_KEY);
-    if (!stored) return;
-    const { ts, buf } = JSON.parse(stored);
-    if (!buf || !buf.length) return;
-    if (Date.now() - ts > 24 * 3600 * 1000) { localStorage.removeItem(TERM_HISTORY_KEY); return; }
-    term.write("\x1b[90m── restoring session history ──\x1b[0m\r\n");
-    for (const chunk of buf) term.write(chunk.replace(/\n/g, "\r\n"));
-    term.write("\x1b[90m──────────────────────────────\x1b[0m\r\n");
-    // Buffer stays empty — only the current session's new output gets saved.
+    if (termOutputBuffer.length) {
+      const json = JSON.stringify({ ts: Date.now(), buf: termOutputBuffer });
+      localStorage.setItem(termHistoryKey, await _compress(json));
+    }
   } catch(e) {}
+  termHistoryKey = key ? `devops-lab-term-${key}` : "devops-lab-term-history";
+  termOutputBuffer = [];
+  termOutputSize = 0;
+}
+
+function clearTermHistory() {
+  clearTimeout(termSaveTimer);
+  localStorage.removeItem(termHistoryKey);
+  termOutputBuffer = [];
+  termOutputSize = 0;
+  term.write("\x1b[90m── session history cleared ──\x1b[0m\r\n");
 }
 
 // ── Feedback ──────────────────────────────────────────────────────────────

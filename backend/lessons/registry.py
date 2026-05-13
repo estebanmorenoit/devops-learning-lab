@@ -30,8 +30,10 @@ LESSON_ORDER = [
     ("kubernetes",    1,  "k8s-w1-core",              "Kubernetes Core Concepts",            "Kubernetes",     "kubernetes",     "intermediate"),
     ("kubernetes",    2,  "k8s-w2-operations",        "Kubernetes Operations",               "Kubernetes",     "kubernetes",     "intermediate"),
     ("kubernetes",    3,  "k8s-w3-service-mesh",      "Service Mesh with Linkerd",           "Kubernetes",     "kubernetes",     "advanced"),
+    ("kubernetes",    4,  "k8s-w4-api-gateway",       "API Gateways & Ingress Controllers",  "Kubernetes",     "kubernetes",     "intermediate"),
     # ── Cloud Providers ───────────────────────────────────────────────────────
     ("cloud",         1,  "cloud-w1-aws",             "Cloud Providers & AWS Fundamentals",  "Cloud",          "cloud",          "intermediate"),
+    ("cloud",         2,  "cloud-w2-azure-gcp",       "Multi-Cloud: Azure & GCP",            "Cloud",          "cloud",          "intermediate"),
     # ── Infrastructure as Code ────────────────────────────────────────────────
     ("terraform",     1,  "tf-w1-modules",            "Terraform Modules & State",           "Terraform",      "terraform",      "intermediate"),
     ("ansible",       1,  "ansible-w1-fundamentals",  "Configuration Management with Ansible","Ansible",       "ansible",        "intermediate"),
@@ -45,10 +47,13 @@ LESSON_ORDER = [
     ("security",      1,  "sec-w1-secrets",           "Secret Management",                   "Security",       "security",       "intermediate"),
     ("security",      2,  "sec-w2-rbac",              "Kubernetes RBAC",                     "Security",       "security",       "intermediate"),
     ("security",      3,  "sec-w3-network-policies",  "Network Policies",                    "Security",       "security",       "advanced"),
+    ("security",      4,  "sec-w4-container-security","Container Security & Pod Security",   "Security",       "security",       "advanced"),
     # ── Observability ─────────────────────────────────────────────────────────
     ("observability", 1,  "obs-w1-prometheus",        "Prometheus & PromQL",                 "Observability",  "observability",  "intermediate"),
     ("observability", 2,  "obs-w2-logs",              "Logs Management",                     "Observability",  "observability",  "intermediate"),
     ("observability", 3,  "obs-w3-tracing",           "Distributed Tracing & OpenTelemetry", "Observability",  "observability",  "advanced"),
+    ("observability", 4,  "obs-w4-log-aggregation",   "Log Aggregation with Loki & Grafana", "Observability",  "observability",  "intermediate"),
+    ("observability", 5,  "obs-w5-alerting",          "Alertmanager & Custom Alerting",      "Observability",  "observability",  "intermediate"),
     # ── Bash Scripting ────────────────────────────────────────────────────────
     ("bash",          1,  "bash-w1-defensive",        "Defensive Bash Scripting",            "Bash",           "bash",           "beginner"),
     ("bash",          2,  "bash-w2-text",             "Text & Data Wrangling",               "Bash",           "bash",           "intermediate"),
@@ -74,17 +79,30 @@ LESSON_ORDER = [
 
 
 def get_all_lessons() -> list:
-    return [
-        {
+    result = []
+    for i, (phase, week, key, title, cat, subdir, diff) in enumerate(LESSON_ORDER):
+        item = {
             "key": key,
             "title": title,
             "phase": phase,
             "week": i + 1,
             "category": cat,
             "difficulty": diff,
+            "subtasks": [],
         }
-        for i, (phase, week, key, title, cat, subdir, diff) in enumerate(LESSON_ORDER)
-    ]
+        path = LESSONS_DIR / subdir / f"{key}.json"
+        if path.exists():
+            try:
+                data = json.loads(path.read_text())
+                types = {s.get("type") for s in data.get("sections", [])}
+                if "quiz" in types:
+                    item["subtasks"].append("quiz")
+                if "challenge" in types:
+                    item["subtasks"].append("challenge")
+            except Exception:
+                pass
+        result.append(item)
+    return result
 
 
 def get_lesson(key: str) -> Optional[dict]:

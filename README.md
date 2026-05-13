@@ -7,7 +7,6 @@
 ![FastAPI](https://img.shields.io/badge/FastAPI-backend-009688?style=flat&logo=fastapi&logoColor=white)
 ![Python](https://img.shields.io/badge/Python-scripting-3776AB?style=flat&logo=python&logoColor=white)
 ![nginx](https://img.shields.io/badge/nginx-frontend-009639?style=flat&logo=nginx&logoColor=white)
-![37 lessons](https://img.shields.io/badge/lessons-37-blueviolet?style=flat)
 
 # DevOps Learning Lab
 
@@ -25,7 +24,7 @@ Every lesson includes written theory and hands-on exercises you complete in a li
 
 ## What you get
 
-- **37 structured lessons** across 12 topics, ordered from Linux basics to GitOps and Observability
+- **Structured lessons** across 12 topics, ordered from Linux basics to GitOps, Security, and Observability
 - A **live k3s Kubernetes cluster** that boots inside Docker — pre-loaded with ArgoCD, Prometheus, Grafana, and External Secrets Operator
 - An **in-browser terminal** (real bash shell) so you can follow along without leaving the UI
 - **Split view** — read the lesson on the left, run commands on the right, side by side
@@ -55,7 +54,7 @@ Then open **http://localhost:3000**.
 
 The dashboard is your home base. It shows all 12 topic cards with your progress on each. Click any card — or any lesson in the left sidebar — to jump straight to it.
 
-Lessons are numbered **W1 – W37** in the recommended order. Later topics build on earlier ones, so working through them in sequence gives the best experience.
+Lessons are ordered in the recommended sequence. Later topics build on earlier ones, so working through them in order gives the best experience.
 
 ### Lessons
 
@@ -76,24 +75,24 @@ Type `help-devops` at any time for a quick reference of common commands and shor
 
 ---
 
-## Curriculum — 37 lessons
+## Curriculum
 
-| # | Topic | Lessons |
-|---|-------|---------|
-| W1–W2 | **Linux & OS** | Linux Fundamentals · Terminal Mastery & System Monitoring |
-| W3 | **Git** | Git Fundamentals |
-| W4–W6 | **Networking** | Networking & Protocols · TLS, Certificates & PKI · Web Servers, Reverse Proxies & Load Balancers |
-| W7 | **Docker** | Images, Layers & Networking |
-| W8–W9 | **Kubernetes** | Core Concepts · Operations |
-| W10 | **Cloud / AWS** | Cloud Providers & AWS Fundamentals |
-| W11–W12 | **IaC** | Terraform Modules & State · Configuration Management with Ansible |
-| W13–W15 | **CI/CD & Helm** | GitLab CI/CD — Pipelines & Caching · CI/CD with GitHub Actions · Helm Chart Authoring |
-| W16 | **GitOps** | GitOps & ArgoCD |
-| W17 | **Security** | Secret Management |
-| W18–W19 | **Observability** | Prometheus & PromQL · Logs Management |
-| W20–W26 | **Bash** | Defensive Scripting · Text & Data Wrangling · Idempotent Scripts · Reusable Libraries · kubectl Scripting · Arrays · Advanced String Processing |
-| W27–W33 | **Python** | Basics for DevOps · subprocess · boto3 · Kubernetes Client · REST APIs · OOP · Testing |
-| W34–W37 | **Projects** | GitLab CI Helper · ESO Secret Rotation · Namespace & Cost Hygiene CLI · Keycloak & On-Prem Ops |
+| Topic | Lessons |
+| ----- | ------- |
+| **Linux & OS** | Linux Fundamentals · Terminal Mastery & System Monitoring |
+| **Git** | Git Fundamentals |
+| **Networking** | Networking & Protocols · TLS, Certificates & PKI · Web Servers, Reverse Proxies & Load Balancers |
+| **Docker** | Images, Layers & Networking |
+| **Kubernetes** | Core Concepts · Operations · Service Mesh · API Gateways & Ingress |
+| **Cloud** | AWS Fundamentals · Multi-Cloud: Azure & GCP |
+| **IaC** | Terraform Modules & State · Configuration Management with Ansible |
+| **CI/CD & Helm** | GitLab CI/CD · CI/CD with GitHub Actions · Helm Chart Authoring |
+| **GitOps** | GitOps & ArgoCD |
+| **Security** | Secret Management · Kubernetes RBAC · Network Policies · Container Security |
+| **Observability** | Prometheus & PromQL · Logs Management · Distributed Tracing · Log Aggregation · Alerting |
+| **Bash** | Defensive Scripting · Text & Data Wrangling · Idempotent Scripts · Reusable Libraries · kubectl Scripting · Arrays · Advanced String Processing |
+| **Python** | Basics for DevOps · subprocess · boto3 · Kubernetes Client · REST APIs · OOP · Testing |
+| **Projects** | GitLab CI Helper · ESO Secret Rotation · Namespace & Cost Hygiene CLI · Keycloak & On-Prem Ops |
 
 ---
 
@@ -248,7 +247,7 @@ devops-learning-lab/
 │   ├── Dockerfile                # Python 3.12, kubectl, helm, argocd, Python DevOps libs
 │   ├── Dockerfile.bootstrap      # One-shot cluster setup (alpine/k8s)
 │   ├── lessons/
-│   │   ├── registry.py           # Ordered lesson list — defines W1–W37 sequence
+│   │   ├── registry.py           # Ordered lesson list and curriculum registry
 │   │   └── content/              # One JSON file per lesson, organised by topic
 │   └── scripts/
 │       ├── bootstrap-cluster.sh  # Installs ArgoCD, ESO, Prometheus; deploys sample workloads

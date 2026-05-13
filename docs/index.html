@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>DevOps Learning Lab</title>
-  <meta name="description" content="A self-hosted, interactive DevOps learning lab — 37 lessons, a real k3s Kubernetes cluster, live in-browser terminal, and pre-loaded ArgoCD, Prometheus, and Grafana. Runs entirely in Docker." />
+  <meta name="description" content="A self-hosted, interactive DevOps learning lab with a real k3s Kubernetes cluster, live in-browser terminal, and pre-loaded ArgoCD, Prometheus, and Grafana. Runs entirely in Docker." />
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -333,7 +333,7 @@
 
 <!-- Hero -->
 <section class="hero">
-  <div class="hero-label">Self-hosted · Open source · 37 lessons</div>
+  <div class="hero-label">Self-hosted · Open source · Always growing</div>
   <h1>Learn DevOps on a <span>real</span> Kubernetes cluster</h1>
   <p>
     An interactive, self-hosted lab that runs a live k3s cluster inside Docker on your laptop —
@@ -389,8 +389,8 @@
     </div>
     <div class="feature-card">
       <div class="feature-icon">◈</div>
-      <h3>37 structured lessons</h3>
-      <p>12 topics ordered from Linux fundamentals through to Kubernetes, GitOps, Observability, Bash scripting, Python automation, and real-world projects.</p>
+      <h3>Structured lessons, always growing</h3>
+      <p>12 topics ordered from Linux fundamentals through to Kubernetes, GitOps, Security, Observability, Bash scripting, Python automation, and real-world projects.</p>
     </div>
     <div class="feature-card">
       <div class="feature-icon">✓</div>
@@ -410,86 +410,71 @@
 <!-- Curriculum -->
 <section class="section" id="curriculum">
   <div class="section-label">Curriculum</div>
-  <h2>37 lessons across 12 topics</h2>
+  <h2>Hands-on lessons across 12 topics</h2>
   <p class="section-lead">
-    Lessons are numbered W1–W37 and ordered so that later topics build on earlier ones.
+    Lessons are ordered so that later topics build on earlier ones. New content is added regularly.
   </p>
   <table class="curriculum-table">
     <thead>
       <tr>
-        <th>Weeks</th>
         <th>Topic</th>
         <th>Lessons</th>
       </tr>
     </thead>
     <tbody>
       <tr>
-        <td><span class="week-badge">W1–W2</span></td>
         <td class="topic-name">Linux &amp; OS</td>
         <td class="lesson-list">Linux Fundamentals · Terminal Mastery &amp; System Monitoring</td>
       </tr>
       <tr>
-        <td><span class="week-badge">W3</span></td>
         <td class="topic-name">Git</td>
         <td class="lesson-list">Git Fundamentals</td>
       </tr>
       <tr>
-        <td><span class="week-badge">W4–W6</span></td>
         <td class="topic-name">Networking</td>
         <td class="lesson-list">Networking &amp; Protocols · TLS, Certificates &amp; PKI · Web Servers, Reverse Proxies &amp; Load Balancers</td>
       </tr>
       <tr>
-        <td><span class="week-badge">W7</span></td>
         <td class="topic-name">Docker</td>
         <td class="lesson-list">Images, Layers &amp; Networking</td>
       </tr>
       <tr>
-        <td><span class="week-badge">W8–W9</span></td>
         <td class="topic-name">Kubernetes</td>
-        <td class="lesson-list">Core Concepts · Operations</td>
+        <td class="lesson-list">Core Concepts · Operations · Service Mesh · API Gateways &amp; Ingress</td>
       </tr>
       <tr>
-        <td><span class="week-badge">W10</span></td>
-        <td class="topic-name">Cloud / AWS</td>
-        <td class="lesson-list">Cloud Providers &amp; AWS Fundamentals</td>
+        <td class="topic-name">Cloud</td>
+        <td class="lesson-list">AWS Fundamentals · Multi-Cloud: Azure &amp; GCP</td>
       </tr>
       <tr>
-        <td><span class="week-badge">W11–W12</span></td>
         <td class="topic-name">IaC</td>
         <td class="lesson-list">Terraform Modules &amp; State · Configuration Management with Ansible</td>
       </tr>
       <tr>
-        <td><span class="week-badge">W13–W15</span></td>
         <td class="topic-name">CI/CD &amp; Helm</td>
-        <td class="lesson-list">GitLab CI/CD — Pipelines &amp; Caching · CI/CD with GitHub Actions · Helm Chart Authoring</td>
+        <td class="lesson-list">GitLab CI/CD · CI/CD with GitHub Actions · Helm Chart Authoring</td>
       </tr>
       <tr>
-        <td><span class="week-badge">W16</span></td>
         <td class="topic-name">GitOps</td>
         <td class="lesson-list">GitOps &amp; ArgoCD</td>
       </tr>
       <tr>
-        <td><span class="week-badge">W17</span></td>
         <td class="topic-name">Security</td>
-        <td class="lesson-list">Secret Management</td>
+        <td class="lesson-list">Secret Management · Kubernetes RBAC · Network Policies · Container Security</td>
       </tr>
       <tr>
-        <td><span class="week-badge">W18–W19</span></td>
         <td class="topic-name">Observability</td>
-        <td class="lesson-list">Prometheus &amp; PromQL · Logs Management</td>
+        <td class="lesson-list">Prometheus &amp; PromQL · Logs Management · Distributed Tracing · Log Aggregation · Alerting</td>
       </tr>
       <tr>
-        <td><span class="week-badge">W20–W26</span></td>
         <td class="topic-name">Bash</td>
         <td class="lesson-list">Defensive Scripting · Text &amp; Data Wrangling · Idempotent Scripts · Reusable Libraries · kubectl Scripting · Arrays · Advanced String Processing</td>
       </tr>
       <tr>
-        <td><span class="week-badge">W27–W33</span></td>
         <td class="topic-name">Python</td>
         <td class="lesson-list">Basics for DevOps · subprocess · boto3 · Kubernetes Client · REST APIs · OOP · Testing</td>
       </tr>
       <tr>
-        <td><span class="week-badge">W34–W37</span></td>
         <td class="topic-name">Projects</td>
         <td class="lesson-list">GitLab CI Helper · ESO Secret Rotation · Namespace &amp; Cost Hygiene CLI · Keycloak &amp; On-Prem Ops</td>
       </tr>

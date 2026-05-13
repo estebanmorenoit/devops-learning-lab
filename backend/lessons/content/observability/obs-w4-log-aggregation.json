@@ -1,0 +1,102 @@
+{
+  "title": "Log Aggregation with Loki & Grafana",
+  "phase": "observability",
+  "week": 4,
+  "category": "Observability",
+  "difficulty": "intermediate",
+  "duration": "~70 min",
+  "prerequisites": ["obs-w1-prometheus", "obs-w2-logs"],
+  "summary": "Logs from hundreds of pods across a cluster need to be centrally collected, stored, and queried. Loki (the 'Prometheus for logs') is already running in this cluster as part of the kube-prometheus-stack. Unlike Elasticsearch, Loki indexes only labels (not the full text), making it cheap to run. Grafana is the query frontend. This lesson covers Loki's architecture, LogQL (the query language), structured logging best practices, and how to build log dashboards in Grafana.",
+  "sections": [
+    {
+      "id": "why-aggregation",
+      "title": "Why log aggregation? The limits of kubectl logs",
+      "type": "lesson",
+      "body": "**`kubectl logs` breaks down at scale:**\n\n```\nkubectl logs <pod>          — works fine for one pod\nkubectl logs -l app=web     — multi-pod, but truncated and slow\nkubectl logs --previous     — only the immediately previous container\n```\n\nProblems that kubectl logs cannot solve:\n\n```\n1. Pod is gone  — OOMKilled, evicted, scaled down → logs are gone too\n2. Scale        — 50 replicas of the same app → 50 kubectl logs calls\n3. History      — default buffer is 10MB per container; older logs are evicted\n4. Search       — no full-text search, no aggregation, no filters\n5. Correlation  — can't join logs from frontend + backend + database\n6. Alerting     — can't fire an alert when ERROR rate exceeds a threshold\n```\n\n**The aggregation stack:**\n\n```\n┌─────────────────────────────────────────────────────────┐\n│  Kubernetes Pods (stdout/stderr)                        │\n│        │                                                │\n│        ▼                                                │\n│  Log collector (Promtail / Fluent Bit)                  │\n│  Runs as DaemonSet — reads /var/log/containers/*.log    │\n│        │                                                │\n│        ▼                                                │\n│  Loki  (storage + indexing by labels)                   │\n│        │                                                │\n│        ▼                                                │\n│  Grafana  (query UI, dashboards, alerts)                │\n└─────────────────────────────────────────────────────────┘\n```\n\n**This cluster already has this stack running:**\n\n```bash\nkubectl get pods -n monitoring | grep -E 'loki|promtail|grafana'\n# loki-0                    1/1  Running\n# promtail-xxxxx            1/1  Running  (one per node)\n# grafana-xxxxxxxx          1/1  Running\n```"
+    },
+    {
+      "id": "loki-architecture",
+      "title": "Loki architecture and label model",
+      "type": "lesson",
+      "body": "**Loki's core design principle: index labels, not content:**\n\n```\nElasticsearch: indexes every word in every log line → expensive, fast full-text search\nLoki:          indexes only stream labels → cheap, queries require label selection first\n```\n\n**Log streams — the unit of storage in Loki:**\n\nA log stream is a set of log entries that share the same label set. Promtail automatically creates streams from Kubernetes metadata:\n\n```\nStream 1: {namespace=\"production\", pod=\"web-abc123\", container=\"nginx\"}\nStream 2: {namespace=\"production\", pod=\"web-def456\", container=\"nginx\"}\nStream 3: {namespace=\"monitoring\", pod=\"prometheus-0\", container=\"prometheus\"}\n```\n\n**Promtail — the log shipper:**\n\nPromtail runs as a DaemonSet. For each node it:\n1. Tails `/var/log/containers/*.log`\n2. Enriches each line with Kubernetes metadata (namespace, pod, container, labels)\n3. Applies relabeling rules\n4. Ships to Loki\n\n```yaml\n# Promtail config (simplified)\nclients:\n  - url: http://loki:3100/loki/api/v1/push\n\nscrape_configs:\n  - job_name: kubernetes-pods\n    kubernetes_sd_configs:\n      - role: pod\n    relabel_configs:\n      # Use namespace and pod name as stream labels\n      - source_labels: [__meta_kubernetes_namespace]\n        target_label: namespace\n      - source_labels: [__meta_kubernetes_pod_name]\n        target_label: pod\n      - source_labels: [__meta_kubernetes_pod_container_name]\n        target_label: container\n      # Include pod labels as Loki labels (be selective — high cardinality = slow)\n      - source_labels: [__meta_kubernetes_pod_label_app]\n        target_label: app\n```\n\n**High cardinality warning:**\n\n```\n# BAD: pod IP as a label — millions of unique values\n{pod_ip=\"10.244.1.42\"}\n\n# BAD: request ID as a label — unbounded cardinality\n{request_id=\"uuid-xxxx\"}\n\n# GOOD: low-cardinality labels (dozens of unique values)\n{namespace=\"production\", app=\"checkout\", env=\"prod\"}\n\n# Put high-cardinality values IN the log line, not as labels\n# Log: {\"level\":\"error\",\"request_id\":\"abc\",\"user_id\":\"42\",\"msg\":\"payment failed\"}\n# Filter with LogQL: {app=\"checkout\"} |= \"payment failed\" | json | user_id=\"42\"\n```\n\n**Loki retention and storage:**\n\n```yaml\n# Loki config — data retention\nlimits_config:\n  retention_period: 30d      # Delete logs older than 30 days\n\n# Storage backends:\n#   filesystem (default, single-node)\n#   S3 / GCS / Azure Blob (production distributed)\n#   MinIO (self-hosted S3-compatible)\n```"
+    },
+    {
+      "id": "logql",
+      "title": "LogQL — querying logs",
+      "type": "lesson",
+      "body": "**LogQL is Loki's query language — inspired by PromQL:**\n\nEvery LogQL query starts with a log stream selector (like PromQL metric selectors):\n\n```logql\n# All logs from the production namespace\n{namespace=\"production\"}\n\n# Logs from a specific app across all namespaces\n{app=\"checkout\"}\n\n# Logs from a pod name matching a regex\n{pod=~\"web-.*\"}\n\n# Exclude a container\n{namespace=\"production\", container!=\"sidecar\"}\n```\n\n**Log pipeline — filter and transform:**\n\n```logql\n# Filter by string (case-sensitive)\n{app=\"checkout\"} |= \"ERROR\"\n\n# Exclude lines matching a pattern\n{app=\"checkout\"} != \"health check\"\n\n# Regex filter\n{app=\"checkout\"} |~ \"timeout|connection refused\"\n\n# Case-insensitive filter\n{app=\"checkout\"} |~ \"(?i)error\"\n```\n\n**Parsing structured logs:**\n\n```logql\n# Parse JSON log lines and filter on a parsed field\n{app=\"checkout\"} | json | level=\"error\"\n\n# Parse logfmt (key=value format)\n{app=\"checkout\"} | logfmt | status_code=\"500\"\n\n# Parse nginx access logs with pattern\n{app=\"nginx\"} | pattern `<ip> - - [<_>] \"<method> <path> <_>\" <status> <_>`\n              | status >= 500\n\n# Extract a field and use it in the pipeline\n{app=\"checkout\"} | json | line_format \"{{.level}} {{.msg}}\"\n```\n\n**Metric queries — aggregate log data:**\n\n```logql\n# Count error log rate per minute\nrate({app=\"checkout\"} |= \"ERROR\" [1m])\n\n# Count HTTP 5xx errors by pod\nsum by (pod) (\n  rate({app=\"nginx\"} | json | status >= 500 [5m])\n)\n\n# P99 latency from parsed log field (duration in ms)\nquantile_over_time(0.99,\n  {app=\"checkout\"} | json | unwrap duration_ms [5m]\n) by (pod)\n\n# Error rate as percentage\nsum(rate({app=\"checkout\"} |= \"ERROR\" [5m]))\n/\nsum(rate({app=\"checkout\"} [5m]))\n* 100\n```\n\n**Useful LogQL patterns:**\n\n```logql\n# Find all pods that logged an OOMKill in the last hour\n{namespace=~\".+\"} |= \"OOMKilled\"\n\n# Recent errors from all apps, newest first\n{namespace=\"production\"} | json | level=\"error\" | line_format \"[{{.pod}}] {{.msg}}\"\n\n# Count unique users from access logs\ncount_over_time(\n  {app=\"api\"} | json | user_id != \"\" [1h]\n) by (user_id)\n```"
+    },
+    {
+      "id": "structured-logging",
+      "title": "Structured logging best practices",
+      "type": "lesson",
+      "body": "**Structured logs are machine-parseable — always use JSON in production:**\n\n```python\n# Bad: unstructured log\nprint(f\"Payment failed for user {user_id}: {error}\")\n# Log: Payment failed for user 42: connection timeout\n# → Can grep for it, but can't easily aggregate by user_id or error type\n\n# Good: structured JSON log\nimport logging\nimport json\n\nclass JSONFormatter(logging.Formatter):\n    def format(self, record):\n        log = {\n            \"ts\": self.formatTime(record),\n            \"level\": record.levelname.lower(),\n            \"msg\": record.getMessage(),\n            \"logger\": record.name,\n        }\n        if hasattr(record, 'extra'):\n            log.update(record.extra)\n        if record.exc_info:\n            log[\"exception\"] = self.formatException(record.exc_info)\n        return json.dumps(log)\n\n# Usage:\nlogger.error(\"Payment failed\", extra={\"user_id\": 42, \"error\": \"connection timeout\", \"amount\": 99.99})\n# Log: {\"ts\":\"2026-05-13T...\",\"level\":\"error\",\"msg\":\"Payment failed\",\"user_id\":42,...}\n```\n\n**Standard fields every log line should have:**\n\n```json\n{\n  \"ts\": \"2026-05-13T10:23:45.123Z\",  // ISO 8601, always UTC\n  \"level\": \"error\",                    // debug | info | warn | error\n  \"msg\": \"Payment processing failed\",  // human-readable summary\n  \"service\": \"checkout\",               // which service\n  \"trace_id\": \"abc123\",               // correlates logs ↔ traces\n  \"span_id\": \"def456\",\n  \"user_id\": \"42\",                     // relevant business entity\n  \"request_id\": \"req-789\",            // correlates a single request\n  \"duration_ms\": 1234,                // for latency analysis\n  \"error\": \"connection timeout\"        // machine-readable error type\n}\n```\n\n**Log levels — use them correctly:**\n\n```\nDEBUG   — verbose development info, never in production (too noisy)\nINFO    — normal operation events (request received, job completed)\nWARN    — unexpected but recoverable (retry attempt, degraded mode)\nERROR   — something failed and needs attention (payment failed, DB down)\nFATAL   — application cannot continue, about to exit\n```\n\n**Grafana Explore — querying Loki:**\n\n```\n1. Open Grafana (port 3001 in this lab)\n2. Go to Explore (compass icon)\n3. Select Loki as data source\n4. Use the label browser or type LogQL directly\n5. Switch between Logs and Metrics view\n6. Click a log line → expand → see all parsed fields\n\nTip: set time range to \"Last 15 minutes\" for faster queries\nTip: use \"Live\" mode to tail logs in real time (like kubectl logs -f)\n```"
+    },
+    {
+      "id": "exercise",
+      "title": "Exercise: query cluster logs with LogQL",
+      "type": "exercise",
+      "body": "Use LogQL in Grafana to explore real logs from the running cluster.\n\n```bash\n# ── 1. Port-forward Grafana ───────────────────────────────────────────────\n# (already done by start.sh grafana-ui — check if port 3001 is forwarded)\nkubectl get svc -n monitoring | grep grafana\n\n# If not already forwarded:\nkubectl port-forward -n monitoring svc/grafana 3001:80 &\n\n# Open http://localhost:3001\n# Default credentials: admin / prom-operator\n\n# ── 2. Generate some logs to query ───────────────────────────────────────\n# Deploy a pod that produces structured logs\nkubectl apply -n learning -f - << 'EOF'\napiVersion: v1\nkind: Pod\nmetadata:\n  name: log-generator\n  labels:\n    app: log-generator\nspec:\n  containers:\n  - name: app\n    image: busybox\n    command: [\"/bin/sh\", \"-c\"]\n    args:\n    - |\n      i=0\n      while true; do\n        echo \"{\\\"ts\\\":\\\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\\\",\\\"level\\\":\\\"info\\\",\\\"msg\\\":\\\"Request processed\\\",\\\"request_id\\\":\\\"req-$i\\\",\\\"duration_ms\\\":$((RANDOM % 500))}\"\n        if [ $((i % 10)) -eq 0 ]; then\n          echo \"{\\\"ts\\\":\\\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\\\",\\\"level\\\":\\\"error\\\",\\\"msg\\\":\\\"Connection failed\\\",\\\"request_id\\\":\\\"req-$i\\\",\\\"error\\\":\\\"timeout\\\"}\"\n        fi\n        i=$((i+1))\n        sleep 1\n      done\nEOF\n\n# ── 3. Wait 30 seconds for Promtail to pick up the logs ──────────────────\nsleep 30\n\n# ── 4. Query logs from the terminal with Loki API directly ───────────────\n# Get recent logs from the log-generator pod\ncurl -s -G \\\n  'http://loki.monitoring:3100/loki/api/v1/query_range' \\\n  --data-urlencode 'query={app=\"log-generator\"}' \\\n  --data-urlencode 'limit=20' \\\n  --data-urlencode 'start=0' | python3 -m json.tool 2>/dev/null | head -50\n\n# ── 5. Try LogQL queries in Grafana Explore ──────────────────────────────\n# Paste each of these in Grafana Explore → Loki:\n\n# All logs from log-generator:\n# {app=\"log-generator\"}\n\n# Only errors:\n# {app=\"log-generator\"} |= \"error\"\n\n# Parse JSON and filter on level field:\n# {app=\"log-generator\"} | json | level=\"error\"\n\n# Count error rate:\n# rate({app=\"log-generator\"} | json | level=\"error\" [1m])\n\n# ── 6. Query kube-system logs ────────────────────────────────────────────\n# Find any OOMKill events in the cluster:\nkubectl get events -A | grep OOMKill || echo 'No OOMKills yet'\n\n# In Grafana Explore:\n# {namespace=\"kube-system\"} |= \"error\" | json\n\n# ── 7. Clean up ──────────────────────────────────────────────────────────\nkubectl delete pod log-generator -n learning\n```"
+    },
+    {
+      "id": "quiz",
+      "title": "Quiz: log aggregation",
+      "type": "quiz",
+      "questions": [
+        {
+          "q": "What is the key architectural difference between Loki and Elasticsearch for log storage?",
+          "options": [
+            "Loki stores logs in S3 while Elasticsearch uses local disk",
+            "Loki indexes only stream labels, not full log content — making it much cheaper to run",
+            "Loki only supports JSON logs while Elasticsearch handles any format",
+            "Elasticsearch supports LogQL while Loki uses SQL"
+          ],
+          "answer": 1,
+          "explanation": "Loki's core design: index labels (low-cardinality metadata like namespace, app, pod) but NOT the log content. This dramatically reduces storage and compute costs. Queries require a label selector first, then filter the log content in-query. Elasticsearch inverts every word, enabling faster full-text search but at much higher cost."
+        },
+        {
+          "q": "Why is using `pod_ip` as a Loki label a problem?",
+          "options": [
+            "IP addresses cannot be stored as label values",
+            "It creates high cardinality — millions of unique label values — making Loki slow and expensive",
+            "Pod IPs are only available after the pod starts",
+            "Promtail does not have access to pod IP addresses"
+          ],
+          "answer": 1,
+          "explanation": "High cardinality labels (IPs, request IDs, user IDs, UUIDs) create massive numbers of unique log streams. Loki must maintain an index entry per unique label set — high cardinality makes this index huge, slowing queries and consuming memory. Put high-cardinality values in the log line itself, not as stream labels."
+        },
+        {
+          "q": "What does the `| json` parser do in a LogQL query?",
+          "options": [
+            "Converts the output to JSON format for the API response",
+            "Parses each log line as JSON and makes its fields available for filtering and formatting",
+            "Filters out any lines that are not valid JSON",
+            "Compresses the log data using JSON encoding"
+          ],
+          "answer": 1,
+          "explanation": "`| json` is a log pipeline stage that parses each log line as a JSON object and extracts its top-level fields as labels for the remainder of the pipeline. This lets you then filter on `level=\"error\"` or format output with `line_format` using extracted fields."
+        }
+      ]
+    },
+    {
+      "id": "challenge",
+      "title": "Challenge: build a log dashboard in Grafana",
+      "type": "challenge",
+      "goal": "Create a Grafana dashboard with three panels monitoring log activity across the cluster: an error rate graph, a log volume by namespace, and a live log tail panel for a specific application.",
+      "hints": [
+        "In Grafana, go to Dashboards → New → New Dashboard → Add visualization, then select Loki as the data source",
+        "For error rate: use `sum(rate({namespace=~\".+\"} |= \"error\" [5m])) by (namespace)` — switch panel type to Time series",
+        "For log volume: use `sum(rate({namespace=~\".+\"} [5m])) by (namespace)` as a stacked bar chart",
+        "For the live log tail: use a Logs panel type (not Time series) with a LogQL log query, and enable live mode",
+        "Save the dashboard and set the refresh interval to 30s"
+      ],
+      "success_criteria": [
+        "Dashboard has at least 3 panels using Loki as data source",
+        "At least one panel uses a metric query (rate/sum) — displayed as Time series",
+        "At least one panel uses a log query — displayed as Logs panel type",
+        "Panels have descriptive titles",
+        "Dashboard is saved and visible in the Grafana dashboard list"
+      ]
+    }
+  ]
+}

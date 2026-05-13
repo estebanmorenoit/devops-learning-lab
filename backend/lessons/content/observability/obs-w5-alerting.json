@@ -1,0 +1,101 @@
+{
+  "title": "Alertmanager & Custom Alerting Rules",
+  "phase": "observability",
+  "week": 5,
+  "category": "Observability",
+  "difficulty": "intermediate",
+  "duration": "~65 min",
+  "prerequisites": ["obs-w1-prometheus", "obs-w4-log-aggregation"],
+  "summary": "Prometheus collects metrics, but it doesn't send notifications — that's Alertmanager's job. PrometheusRule CRDs let you define alert conditions as PromQL expressions; Alertmanager routes firing alerts to the right receiver (Slack, PagerDuty, email) based on labels. This lesson covers writing alert rules, tuning severity and for duration, configuring routing trees, inhibition, silences, and building runbooks.",
+  "sections": [
+    {
+      "id": "alerting-architecture",
+      "title": "Alerting architecture: Prometheus → Alertmanager → Receivers",
+      "type": "lesson",
+      "body": "**The alerting pipeline:**\n\n```\n┌─────────────────────────────────────────────────────────────┐\n│                                                             │\n│  PrometheusRule (CRD)                                       │\n│  ┌──────────────────────────────────────────────────┐       │\n│  │  expr: rate(http_requests_total{code=\"5xx\"}[5m])  │       │\n│  │         > 0.05                                    │       │\n│  │  for: 2m                                          │       │\n│  │  labels: { severity: warning }                    │       │\n│  └──────────────────────────────────────────────────┘       │\n│           │ evaluates every 15s                             │\n│           ▼                                                 │\n│  Prometheus (evaluates rules, sends to Alertmanager)        │\n│           │ fires when expr is true for 'for' duration      │\n│           ▼                                                 │\n│  Alertmanager (dedup, group, route, silence, inhibit)       │\n│           │                                                 │\n│     ┌─────┼─────┐                                           │\n│     ▼     ▼     ▼                                           │\n│   Slack PD  Email  (receivers)                              │\n└─────────────────────────────────────────────────────────────┘\n```\n\n**Alert states:**\n\n```\nINACTIVE  → PromQL expression is false (no alert)\nPENDING   → Expression became true, but 'for' duration not elapsed yet\nFIRING    → Expression was true for the entire 'for' duration → sent to Alertmanager\n```\n\n**Why the `for` duration matters:**\n\n```yaml\n# Without 'for': alert fires on the first evaluation where expr is true\n# Causes alert flapping on transient spikes\nexpr: rate(http_errors[1m]) > 0\n\n# With 'for: 2m': must be continuously true for 2 minutes\n# Filters out brief spikes, reduces noise\nexpr: rate(http_errors[1m]) > 0\nfor: 2m\n```\n\n**Alertmanager's responsibilities:**\n\n```\nDeduplication   — multiple Prometheus instances may fire the same alert; Alertmanager dedupes\nGrouping        — batch related alerts into one notification (all pods in same service)\nRouting         — send critical alerts to PagerDuty, warnings to Slack\nSilencing       — suppress alerts during maintenance windows\nInhibition      — suppress child alerts when a parent alert fires\n                  (e.g., suppress per-pod alerts when the whole cluster is down)\n```"
+    },
+    {
+      "id": "writing-rules",
+      "title": "Writing PrometheusRule resources",
+      "type": "lesson",
+      "body": "**PrometheusRule is a CRD — define alert rules as Kubernetes objects:**\n\n```yaml\napiVersion: monitoring.coreos.com/v1\nkind: PrometheusRule\nmetadata:\n  name: application-alerts\n  namespace: monitoring\n  labels:\n    # Must match the Prometheus operator's ruleSelector\n    release: kube-prometheus-stack\nspec:\n  groups:\n  - name: application.rules\n    interval: 30s     # How often to evaluate this group (default: global interval)\n    rules:\n\n    # ── Error rate alert ────────────────────────────────────────────────\n    - alert: HighErrorRate\n      expr: |\n        sum(rate(http_requests_total{code=~\"5..\"}[5m])) by (service)\n        /\n        sum(rate(http_requests_total[5m])) by (service)\n        > 0.05\n      for: 2m\n      labels:\n        severity: warning\n        team: backend\n      annotations:\n        summary: \"High error rate on {{ $labels.service }}\"\n        description: \"{{ $labels.service }} has {{ $value | humanizePercentage }} error rate (threshold: 5%)\"\n        runbook_url: \"https://runbooks.company.com/high-error-rate\"\n\n    # ── Latency alert ────────────────────────────────────────────────────\n    - alert: SlowRequests\n      expr: |\n        histogram_quantile(0.99,\n          sum(rate(http_request_duration_seconds_bucket[5m])) by (le, service)\n        ) > 2\n      for: 5m\n      labels:\n        severity: warning\n      annotations:\n        summary: \"P99 latency > 2s on {{ $labels.service }}\"\n        description: \"P99 request latency is {{ $value | humanizeDuration }} on {{ $labels.service }}\"\n\n    # ── Pod crash alert ──────────────────────────────────────────────────\n    - alert: PodCrashLooping\n      expr: |\n        rate(kube_pod_container_status_restarts_total[15m]) * 60 * 15 > 3\n      for: 1m\n      labels:\n        severity: critical\n      annotations:\n        summary: \"Pod {{ $labels.namespace }}/{{ $labels.pod }} is crash-looping\"\n        description: \"Container {{ $labels.container }} has restarted {{ $value | humanize }} times in 15m\"\n\n    # ── Capacity alerts ──────────────────────────────────────────────────\n    - alert: PodMemoryHigh\n      expr: |\n        container_memory_working_set_bytes{container!=\"\"}\n        / container_spec_memory_limit_bytes{container!=\"\"} > 0.85\n      for: 5m\n      labels:\n        severity: warning\n      annotations:\n        summary: \"Container {{ $labels.container }} memory at {{ $value | humanizePercentage }}\"\n\n    # ── Dead man's switch (ensure alerting pipeline is working) ──────────\n    - alert: Watchdog\n      expr: vector(1)\n      labels:\n        severity: none\n      annotations:\n        summary: \"Alerting pipeline is functioning\"\n        description: \"This alert always fires — if you stop receiving it, the pipeline is broken\"\n```\n\n**Template functions available in annotations:**\n\n```\n{{ $value }}                    → raw numeric value\n{{ $value | humanize }}         → human-readable (1.23k, 4.56M)\n{{ $value | humanizePercentage }} → 12.34%\n{{ $value | humanizeDuration }} → 2m 30s\n{{ $labels.pod }}               → label value\n{{ $externalLabels.cluster }}   → Prometheus external labels\n```"
+    },
+    {
+      "id": "routing-inhibition",
+      "title": "Routing trees and inhibition",
+      "type": "lesson",
+      "body": "**Alertmanager configuration — the routing tree:**\n\n```yaml\n# alertmanager.yaml (mounted as a Secret in kube-prometheus-stack)\nglobal:\n  resolve_timeout: 5m\n  slack_api_url: 'https://hooks.slack.com/services/...'\n\nroute:\n  # Default receiver — catches everything not matched below\n  receiver: slack-warnings\n  group_by: [alertname, namespace]  # Group alerts with same labels into one message\n  group_wait: 30s      # Wait this long for more alerts before sending first notification\n  group_interval: 5m   # How long to wait before sending update on a group\n  repeat_interval: 12h # How long before re-notifying a still-firing alert\n\n  routes:\n  # Critical alerts → PagerDuty (immediate)\n  - match:\n      severity: critical\n    receiver: pagerduty\n    group_wait: 0s       # Send immediately — no waiting\n    repeat_interval: 4h\n\n  # Database alerts → dedicated DBA channel\n  - match_re:\n      alertname: \"(Postgres|Redis|MySQL).*\"\n    receiver: slack-database\n\n  # Suppress Watchdog alert (it's informational only)\n  - match:\n      alertname: Watchdog\n    receiver: blackhole\n\nreceivers:\n- name: slack-warnings\n  slack_configs:\n  - channel: '#alerts-warning'\n    title: '{{ template \"slack.title\" . }}'\n    text: '{{ template \"slack.text\" . }}'\n    send_resolved: true\n\n- name: pagerduty\n  pagerduty_configs:\n  - routing_key: '{{ secrets.pagerduty_key }}'\n    severity: '{{ .CommonLabels.severity }}'\n    description: '{{ .CommonAnnotations.summary }}'\n\n- name: slack-database\n  slack_configs:\n  - channel: '#alerts-database'\n    send_resolved: true\n\n- name: blackhole  # Swallows alerts silently\n```\n\n**Inhibition rules — suppress child alerts during outages:**\n\n```yaml\ninhibit_rules:\n# If the whole cluster is down (ClusterDown alert fires),\n# suppress per-node and per-pod alerts (they're all symptoms, not causes)\n- source_match:\n    alertname: ClusterDown\n    severity: critical\n  target_match_re:\n    alertname: \"(NodeDown|PodCrashLooping|HighErrorRate).*\"\n  equal: [cluster]  # Only inhibit alerts with the same cluster label\n\n# If a node is down, suppress pod alerts from that node\n- source_match:\n    alertname: NodeDown\n    severity: critical\n  target_match:\n    alertname: PodCrashLooping\n  equal: [node]\n```\n\n**Silences — suppress specific alerts for a time window:**\n\n```bash\n# Create a silence via Alertmanager API (for maintenance windows)\ncurl -s -X POST \\\n  http://alertmanager:9093/api/v2/silences \\\n  -H 'Content-Type: application/json' \\\n  -d '{\n    \"matchers\": [\n      {\"name\": \"namespace\", \"value\": \"staging\", \"isRegex\": false}\n    ],\n    \"startsAt\": \"2026-05-13T02:00:00Z\",\n    \"endsAt\":   \"2026-05-13T04:00:00Z\",\n    \"createdBy\": \"ops-bot\",\n    \"comment\":   \"Scheduled maintenance window\"\n  }'\n\n# Or use the Alertmanager UI: http://alertmanager:9093\n```"
+    },
+    {
+      "id": "runbooks",
+      "title": "Runbooks and alert quality",
+      "type": "lesson",
+      "body": "**A runbook is the documentation that answers: what do I do when this alert fires?**\n\nEvery alert should link to a runbook in its annotations. A good runbook:\n\n```markdown\n# HighErrorRate Runbook\n\n## What fired\nHTTP 5xx error rate exceeded 5% for 2 minutes on `{{ service }}`.\n\n## Severity\nWarning → investigate within 30 minutes\nCritical → page on-call immediately\n\n## Immediate checks\n1. Check pod logs:\n   kubectl logs -l app={{ service }} -n production --tail=50\n\n2. Check recent deployments:\n   kubectl rollout history deployment/{{ service }} -n production\n\n3. Check downstream dependencies:\n   kubectl get pods -n production   # Are all pods healthy?\n   kubectl get events -n production # Any OOMKills or evictions?\n\n## Likely causes\n- Recent deployment introduced a regression → rollback:\n  kubectl rollout undo deployment/{{ service }} -n production\n- Database connection pool exhausted → check connection count\n- Dependency (Redis, external API) is down → check dependency status\n- Traffic spike exhausting replicas → check HPA and scale up\n\n## Escalation\nIf not resolved in 30 minutes, escalate to {{ team }} via PagerDuty.\n```\n\n**Alert quality — signal vs noise:**\n\n```\nGood alert:\n  ✓ Actionable: you know exactly what to do when it fires\n  ✓ Urgent: represents a real user-impacting problem\n  ✓ Accurate: rarely fires spuriously (no flapping)\n  ✓ Has a runbook link\n\nBad alert:\n  ✗ CPU > 50% — CPU usage alone doesn't mean users are impacted\n  ✗'error' in logs — too noisy; logs always have errors\n  ✗ No 'for' duration — fires on every transient spike\n  ✗ No runbook — on-call doesn't know what to do\n\nAlert fatigue:\n  If on-call ignores alerts because they're always noisy,\n  the entire alerting system becomes useless.\n  Aim for: every fired alert requires a human action.\n```\n\n**SLO-based alerting (burn rate alerts):**\n\n```yaml\n# Alert on SLO burn rate rather than raw error rate\n# If 5% error rate budget is consumed at 14x the normal rate,\n# you'll exhaust it in 1 hour\n- alert: ErrorBudgetBurnHigh\n  expr: |\n    (\n      sum(rate(http_requests_total{code=~\"5..\"}[1h]))\n      /\n      sum(rate(http_requests_total[1h]))\n    ) > (14 * 0.001)   # 14x burn rate, 0.1% error budget\n  labels:\n    severity: critical\n  annotations:\n    summary: \"Error budget burning fast — SLO at risk within 1 hour\"\n```"
+    },
+    {
+      "id": "exercise",
+      "title": "Exercise: create and trigger an alert",
+      "type": "exercise",
+      "body": "Create a PrometheusRule that fires when a pod has restarted more than once in 5 minutes, then trigger it.\n\n```bash\n# ── 1. Check current alerts ───────────────────────────────────────────────\nkubectl get prometheusrules -n monitoring\nkubectl port-forward -n monitoring svc/alertmanager-operated 9093 &\n# Open http://localhost:9093 to see Alertmanager UI\n\n# ── 2. View existing PrometheusRule ──────────────────────────────────────\nkubectl get prometheusrule kube-prometheus-stack-kubernetes-apps \\\n  -n monitoring -o yaml | grep -A10 'PodCrashLooping'\n\n# ── 3. Create a custom alert rule ────────────────────────────────────────\nkubectl apply -f - << 'EOF'\napiVersion: monitoring.coreos.com/v1\nkind: PrometheusRule\nmetadata:\n  name: learning-alerts\n  namespace: monitoring\n  labels:\n    release: kube-prometheus-stack\nspec:\n  groups:\n  - name: learning.rules\n    rules:\n    - alert: LearningPodRestarting\n      expr: |\n        increase(kube_pod_container_status_restarts_total{\n          namespace=\"learning\"\n        }[5m]) > 1\n      for: 30s\n      labels:\n        severity: warning\n        namespace: learning\n      annotations:\n        summary: \"Pod {{ $labels.pod }} restarting in learning namespace\"\n        description: \"Container {{ $labels.container }} has restarted {{ $value }} times in 5m\"\nEOF\n\n# ── 4. Verify Prometheus picked up the rule ───────────────────────────────\n# Port-forward Prometheus\nkubectl port-forward -n monitoring svc/prometheus-operated 9090 &\n# Open http://localhost:9090/rules and look for 'LearningPodRestarting'\n\n# ── 5. Trigger the alert ─────────────────────────────────────────────────\n# Deploy a crash-looping pod\nkubectl apply -n learning -f - << 'EOF'\napiVersion: v1\nkind: Pod\nmetadata:\n  name: crash-pod\nspec:\n  containers:\n  - name: app\n    image: busybox\n    command: [\"/bin/sh\", \"-c\", \"echo 'starting'; sleep 5; exit 1\"]\n  restartPolicy: Always\nEOF\n\n# ── 6. Watch restarts accumulate ──────────────────────────────────────────\nwatch kubectl get pod crash-pod -n learning\n# RESTARTS column should increment every ~5 seconds\n\n# ── 7. Check Prometheus for the firing alert ─────────────────────────────\n# In http://localhost:9090/alerts look for LearningPodRestarting in PENDING/FIRING\n\n# Query to confirm (in Prometheus UI):\n# increase(kube_pod_container_status_restarts_total{namespace=\"learning\",pod=\"crash-pod\"}[5m])\n\n# ── 8. Check Alertmanager ─────────────────────────────────────────────────\n# After ~30 seconds it should appear in http://localhost:9093\n\n# ── 9. Clean up ──────────────────────────────────────────────────────────\nkubectl delete pod crash-pod -n learning\nkubectl delete prometheusrule learning-alerts -n monitoring\n```"
+    },
+    {
+      "id": "quiz",
+      "title": "Quiz: alerting",
+      "type": "quiz",
+      "questions": [
+        {
+          "q": "What is the purpose of the `for: 2m` field in a PrometheusRule alert?",
+          "options": [
+            "Repeat the alert notification every 2 minutes",
+            "The alert only fires if the expression has been continuously true for 2 minutes, reducing false positives from transient spikes",
+            "Pause alert evaluation for 2 minutes after the alert resolves",
+            "Group alerts that fire within 2 minutes of each other"
+          ],
+          "answer": 1,
+          "explanation": "The `for` duration sets a minimum time the expression must be true before the alert transitions from PENDING to FIRING. Without it, a single-second CPU spike would fire an alert. With `for: 2m`, the condition must be sustained — dramatically reducing alert noise from transient issues."
+        },
+        {
+          "q": "What does an inhibition rule in Alertmanager do?",
+          "options": [
+            "Prevents an alert from firing more than once per hour",
+            "Suppresses alerts from being sent to receivers entirely",
+            "Suppresses child/symptom alerts when a parent/cause alert is firing",
+            "Delays alert delivery during off-hours"
+          ],
+          "answer": 2,
+          "explanation": "Inhibition prevents alert storms. When a high-level alert fires (e.g., NodeDown), dozens of downstream alerts (pod restarts, high error rates) also fire — all as symptoms of the same cause. Inhibition suppresses those symptoms so on-call only sees the root cause alert."
+        },
+        {
+          "q": "What is a 'dead man's switch' alert (like the Watchdog alert)?",
+          "options": [
+            "An alert that fires when a critical service has been down for too long",
+            "An alert that always fires to verify the alerting pipeline itself is working",
+            "An alert with no receiver — used for testing",
+            "An alert that automatically pages on-call if not acknowledged"
+          ],
+          "answer": 1,
+          "explanation": "A dead man's switch alert (Watchdog) is an alert expression that is always true (`vector(1)`). If you stop receiving this alert, it means the alerting pipeline itself is broken — Prometheus stopped scraping, Alertmanager is down, or the notification channel failed. You can use a service like PagerDuty's Dead Man's Snitch to expect this alert and page if it stops arriving."
+        }
+      ]
+    },
+    {
+      "id": "challenge",
+      "title": "Challenge: build a complete alerting setup",
+      "type": "challenge",
+      "goal": "Create a PrometheusRule with three alerts of different severities, configure a Slack receiver in Alertmanager (or a webhook receiver for testing), and write a runbook for your most critical alert.",
+      "hints": [
+        "Use `webhook_configs` receiver in Alertmanager pointing to a local service for testing without real Slack — or use https://webhook.site to get a temporary URL",
+        "Patch the Alertmanager config Secret: `kubectl get secret alertmanager-kube-prometheus-stack-alertmanager -n monitoring -o yaml`",
+        "For the PrometheusRule label selector, check what labels Prometheus expects: `kubectl get prometheus -n monitoring -o yaml | grep ruleSelector`",
+        "Test your PromQL expressions in the Prometheus UI (/graph) before putting them in a rule"
+      ],
+      "success_criteria": [
+        "PrometheusRule resource exists in monitoring namespace with at least 3 alerts",
+        "Alerts have different severity labels (info, warning, critical)",
+        "Each alert has a summary and description annotation",
+        "Alertmanager routing tree has at least two routes based on severity",
+        "A runbook markdown file exists for the critical alert with immediate steps and likely causes"
+      ]
+    }
+  ]
+}

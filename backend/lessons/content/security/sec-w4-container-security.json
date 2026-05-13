@@ -1,0 +1,102 @@
+{
+  "title": "Container Security & Pod Security Standards",
+  "phase": "security",
+  "week": 4,
+  "category": "Security",
+  "difficulty": "advanced",
+  "duration": "~80 min",
+  "prerequisites": ["sec-w2-rbac", "sec-w3-network-policies", "docker-w1-fundamentals"],
+  "summary": "A running container is just a Linux process with namespaces and cgroups — the kernel is shared with the host. If the container is misconfigured (running as root, privilege escalation allowed, writable root filesystem), a container escape can compromise the node. This lesson covers the container threat model, Kubernetes Pod Security Standards, image scanning with Trivy, and runtime hardening patterns.",
+  "sections": [
+    {
+      "id": "threat-model",
+      "title": "The container threat model",
+      "type": "lesson",
+      "body": "**Containers are not VMs — they share the host kernel:**\n\n```\n┌────────────────────────────────────────────────────────┐\n│  Host kernel (shared)                                  │\n├──────────────┬──────────────┬──────────────────────────┤\n│  Container A │  Container B │  Container C             │\n│  (namespace) │  (namespace) │  (namespace)             │\n└──────────────┴──────────────┴──────────────────────────┘\n```\n\nA container escape means the attacker breaks out of the Linux namespace isolation and reaches the host or another container's filesystem/network.\n\n**Common attack vectors:**\n\n```\n1. Running as root inside the container\n   → UID 0 inside often maps to root on the host\n   → If /etc/passwd is mounted, root in container = root on host\n\n2. Privilege escalation (allowPrivilegeEscalation: true)\n   → setuid binaries (sudo, su, passwd) can elevate to root\n   → Even a non-root user can become root via setuid\n\n3. Writable root filesystem\n   → Attacker can install malware, modify binaries in PATH\n   → Persistence survives container restarts if PVC is mounted\n\n4. Host path mounts\n   → spec.volumes[].hostPath mounts parts of the host filesystem\n   → Mounting /var/run/docker.sock = full Docker daemon access\n   → Mounting /etc/kubernetes = access to cluster config\n\n5. Privileged containers\n   → securityContext.privileged: true disables ALL namespace isolation\n   → Equivalent to running directly on the host as root\n   → Can load kernel modules, access all devices, escape trivially\n\n6. Capabilities\n   → Linux capabilities split root privileges into ~40 fine-grained flags\n   → CAP_NET_ADMIN: reconfigure networking (route tables, iptables)\n   → CAP_SYS_ADMIN: mount filesystems, change namespaces — essentially root\n   → Default Docker/Kubernetes drops many but not all\n```\n\n**The principle of least privilege for containers:**\n\n```yaml\n# Hardened pod spec (defence in depth)\nspec:\n  securityContext:\n    runAsNonRoot: true          # Refuse to start if image runs as root\n    runAsUser: 1000\n    runAsGroup: 1000\n    fsGroup: 1000               # Volume ownership\n    seccompProfile:\n      type: RuntimeDefault      # syscall filter (Docker default seccomp)\n  containers:\n  - name: app\n    securityContext:\n      allowPrivilegeEscalation: false   # No setuid\n      readOnlyRootFilesystem: true      # Immutable filesystem\n      capabilities:\n        drop: [\"ALL\"]                   # Drop every capability\n        add: [\"NET_BIND_SERVICE\"]       # Add only what's needed (ports <1024)\n```"
+    },
+    {
+      "id": "pod-security-standards",
+      "title": "Pod Security Standards (PSS)",
+      "type": "lesson",
+      "body": "**Pod Security Standards replaced PodSecurityPolicy (deprecated in 1.21, removed in 1.25):**\n\nPSS defines three policy levels applied at the namespace level via labels:\n\n```\nprivileged  — no restrictions (use for system namespaces like kube-system)\nbaseline    — prevents known privilege escalations, sensible minimum\nrestricted  — hardened, follows current pod security best practices\n```\n\nEach level can be applied in three modes:\n\n```\nenforce  — reject pods that violate the policy\naudit    — allow but log violations to the audit log\nwarn     — allow but return a user-facing warning\n```\n\n**Apply PSS to a namespace:**\n\n```yaml\napiVersion: v1\nkind: Namespace\nmetadata:\n  name: production\n  labels:\n    # Enforce restricted — pods that don't comply are rejected\n    pod-security.kubernetes.io/enforce: restricted\n    pod-security.kubernetes.io/enforce-version: v1.29\n    # Warn on baseline violations in staging\n    pod-security.kubernetes.io/warn: baseline\n    pod-security.kubernetes.io/warn-version: latest\n    # Audit everything\n    pod-security.kubernetes.io/audit: restricted\n    pod-security.kubernetes.io/audit-version: v1.29\n```\n\n**What each level restricts:**\n\n```\nbaseline:\n  ✗ privileged containers\n  ✗ host network/PID/IPC sharing\n  ✗ hostPath volumes\n  ✗ dangerous capabilities (NET_RAW, SYS_ADMIN, etc.)\n  ✗ HostPort\n\nrestricted (everything in baseline, plus):\n  ✗ running as root (runAsNonRoot must be true)\n  ✗ allowPrivilegeEscalation: true\n  ✗ non-default seccomp profiles\n  ✓ readOnlyRootFilesystem: true (recommended but not required)\n  ✓ capabilities must drop ALL; only NET_BIND_SERVICE allowed to add\n```\n\n**Migrating to restricted — common fixes:**\n\n```yaml\n# Error: pods violate PodSecurity \"restricted:latest\":\n# → allowPrivilegeEscalation != false\n# → unrestricted capabilities\n# → runAsNonRoot != true\n# → seccompProfile not set\n\n# Fix — add to every container:\ncontainers:\n- name: app\n  securityContext:\n    runAsNonRoot: true\n    runAsUser: 65534          # nobody\n    allowPrivilegeEscalation: false\n    readOnlyRootFilesystem: true\n    capabilities:\n      drop: [\"ALL\"]\n  # If the image runs as root, you must rebuild it:\n  # Dockerfile:\n  # RUN addgroup -S appgroup && adduser -S appuser -G appgroup\n  # USER appuser\n```\n\n**Check PSS violations without enforcing:**\n\n```bash\n# Dry-run apply to see what would be rejected under restricted\nkubectl label namespace default \\\n  pod-security.kubernetes.io/warn=restricted \\\n  pod-security.kubernetes.io/warn-version=latest\n\n# Then try deploying — you'll see warnings for non-compliant pods\nkubectl apply -f my-deployment.yaml\n# Warning: would violate PodSecurity \"restricted:latest\": ...\n```"
+    },
+    {
+      "id": "image-scanning",
+      "title": "Image scanning with Trivy",
+      "type": "lesson",
+      "body": "**Every image layer is a potential attack surface — scan before pushing:**\n\nTrivy is the de-facto standard for container image vulnerability scanning. It checks OS packages (Alpine, Debian, Ubuntu, RHEL), language packages (pip, npm, go.sum, Cargo.lock), and misconfigurations.\n\n```bash\n# Install Trivy (Linux/Mac)\nbrew install aquasecurity/trivy/trivy\n# or\ncurl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh\n\n# Scan an image for vulnerabilities\ntrivy image nginx:latest\n\n# Output:\n# nginx:latest (debian 12.5)\n# ========================\n# Total: 148 (UNKNOWN: 0, LOW: 87, MEDIUM: 42, HIGH: 16, CRITICAL: 3)\n#\n# ┌──────────────┬────────────────┬──────────┬────────┬───────────────┐\n# │   Library    │ Vulnerability  │ Severity │ Status │  Fix Version  │\n# ├──────────────┼────────────────┼──────────┼────────┼───────────────┤\n# │ libssl3      │ CVE-2024-0727  │ HIGH     │ fixed  │ 3.0.13-1~deb12│\n\n# Filter by severity (only CRITICAL and HIGH)\ntrivy image --severity CRITICAL,HIGH nginx:latest\n\n# Exit with non-zero on CRITICAL (useful in CI)\ntrivy image --exit-code 1 --severity CRITICAL nginx:latest\n\n# Scan a local Dockerfile for misconfigurations\ntrivy config ./Dockerfile\n\n# Scan a running cluster for vulnerable images\ntrivy k8s --report summary cluster\n\n# Scan a tarball (useful in air-gapped environments)\ndocker save nginx:latest -o nginx.tar\ntrivy image --input nginx.tar\n```\n\n**Trivy in GitHub Actions CI pipeline:**\n\n```yaml\n- name: Scan image for vulnerabilities\n  uses: aquasecurity/trivy-action@master\n  with:\n    image-ref: myapp:${{ github.sha }}\n    format: sarif\n    output: trivy-results.sarif\n    severity: CRITICAL,HIGH\n    exit-code: 1     # fail the build on CRITICAL/HIGH\n\n- name: Upload SARIF to GitHub Security tab\n  uses: github/codeql-action/upload-sarif@v3\n  with:\n    sarif_file: trivy-results.sarif\n```\n\n**Reducing your attack surface — image hardening:**\n\n```dockerfile\n# Use minimal base images\nFROM cgr.dev/chainguard/python:latest-dev AS builder\n# Chainguard images have near-zero CVEs — stripped to only what's needed\n\n# Multi-stage builds: builder has compilers, final image does not\nFROM cgr.dev/chainguard/python:latest AS runtime\nCOPY --from=builder /app /app\n\n# Alternatives:\n# FROM gcr.io/distroless/python3  — Google's distroless (no shell, no package manager)\n# FROM alpine:3.19               — minimal, but has a shell\n# FROM scratch                   — empty (Go static binaries only)\n\n# Pinning: never use :latest in production\nFROM python:3.12.3-slim-bookworm  # pin exact digest for reproducible builds\n# Even better — pin by digest:\n# FROM python@sha256:a1b2c3...\n\n# Don't run as root\nRUN addgroup -S app && adduser -S app -G app\nUSER app\n\n# No secrets in image layers\n# WRONG:\n# RUN pip install -r requirements.txt --extra-index-url https://user:TOKEN@pypi.company.com\n# RIGHT: use --secret flag in buildkit\n# RUN --mount=type=secret,id=pypi_token pip install ...\n```"
+    },
+    {
+      "id": "runtime-security",
+      "title": "Runtime security & kube-bench",
+      "type": "lesson",
+      "body": "**kube-bench — CIS Kubernetes Benchmark auditing:**\n\nThe CIS (Center for Internet Security) Kubernetes Benchmark is the industry standard for cluster hardening. kube-bench automates the checks.\n\n```bash\n# Run kube-bench against control-plane components\nkubectl apply -f https://raw.githubusercontent.com/aquasecurity/kube-bench/main/job.yaml\nkubectl logs job/kube-bench\n\n# Output:\n# [INFO] 1 Control Plane Security Configuration\n# [PASS] 1.1.1 Ensure that the API server pod specification file permissions are set to 600\n# [FAIL] 1.2.6 Ensure that the --authorization-mode argument includes RBAC\n# [WARN] 1.2.11 Ensure that the admission control plugin AlwaysPullImages is set\n# ...\n# == Summary ==\n# 43 checks PASS\n# 16 checks FAIL\n# 8 checks WARN\n```\n\n**Seccomp — syscall filtering:**\n\n```yaml\n# RuntimeDefault applies the container runtime's default seccomp profile\n# (Docker's default blocks ~40 dangerous syscalls like reboot, kexec_load)\nspec:\n  securityContext:\n    seccompProfile:\n      type: RuntimeDefault\n\n# Localhost: use a custom profile stored on the node\nspec:\n  securityContext:\n    seccompProfile:\n      type: Localhost\n      localhostProfile: profiles/my-app.json\n```\n\n**AppArmor — MAC (Mandatory Access Control):**\n\n```yaml\n# Apply an AppArmor profile to a container (node must have profile loaded)\nmetadata:\n  annotations:\n    container.apparmor.security.beta.kubernetes.io/my-app: localhost/my-profile\n    # or: runtime/default\n    # or: unconfined (disables AppArmor)\n```\n\n**Falco — runtime threat detection:**\n\nFalco is a CNCF project that watches Linux syscalls and Kubernetes audit events in real time, firing alerts when suspicious behaviour is detected.\n\n```yaml\n# Example Falco rules (default ruleset includes these)\n- rule: Terminal shell in container\n  desc: A shell was spawned in a container — likely kubectl exec\n  condition: >-\n    spawned_process and container\n    and shell_procs and proc.tty != 0\n  output: \"Shell opened in container (user=%user.name container=%container.name)\"\n  priority: NOTICE\n\n- rule: Write below binary dir\n  desc: An attempt to write to /bin, /usr/bin, /sbin etc.\n  condition: open_write and bin_dir\n  output: \"File write below binary dir (file=%fd.name container=%container.name)\"\n  priority: ERROR\n\n- rule: Unexpected outbound connection\n  desc: A container made an outbound TCP connection on an unexpected port\n  condition: outbound and not expected_outbound_ports\n  output: \"Unexpected connection (port=%fd.sport container=%container.name)\"\n  priority: WARNING\n```\n\n**Defence-in-depth checklist:**\n\n```\n✓ Image: minimal base, pinned digest, Trivy scan in CI, no root user\n✓ Pod spec: runAsNonRoot, readOnlyRootFilesystem, drop ALL capabilities\n✓ Namespace: PSS restricted or baseline enforced\n✓ Network: NetworkPolicies (default deny + explicit allow)\n✓ RBAC: least-privilege ServiceAccounts, no wildcards\n✓ Secrets: External Secrets Operator, never env vars from plain Secrets\n✓ Runtime: Falco deployed, alerts routed to Slack/PagerDuty\n✓ Cluster: kube-bench passing, API server audit logging enabled\n```"
+    },
+    {
+      "id": "exercise",
+      "title": "Exercise: harden a pod and scan an image",
+      "type": "exercise",
+      "body": "Apply Pod Security Standards to a namespace and audit a running pod's security context.\n\n```bash\n# ── 1. Label the learning namespace with warn mode first ──────────────────\nkubectl label namespace learning \\\n  pod-security.kubernetes.io/warn=restricted \\\n  pod-security.kubernetes.io/warn-version=latest\n\n# ── 2. Deploy an intentionally insecure pod ───────────────────────────────\nkubectl apply -n learning -f - << 'EOF'\napiVersion: v1\nkind: Pod\nmetadata:\n  name: insecure-pod\nspec:\n  containers:\n  - name: app\n    image: nginx:alpine\n    # No securityContext at all — runs as root by default\nEOF\n# You should see a warning about PSS violation\n\n# ── 3. Check what the pod is running as ───────────────────────────────────\nkubectl exec -n learning insecure-pod -- id\n# uid=0(root) — confirmed running as root\n\n# ── 4. Deploy a hardened version ─────────────────────────────────────────\nkubectl apply -n learning -f - << 'EOF'\napiVersion: v1\nkind: Pod\nmetadata:\n  name: hardened-pod\nspec:\n  securityContext:\n    runAsNonRoot: true\n    runAsUser: 1000\n    seccompProfile:\n      type: RuntimeDefault\n  containers:\n  - name: app\n    image: nginx:alpine\n    securityContext:\n      allowPrivilegeEscalation: false\n      readOnlyRootFilesystem: true\n      capabilities:\n        drop: [\"ALL\"]\n    # nginx needs to write to /tmp and /var/cache\n    volumeMounts:\n    - name: tmp\n      mountPath: /tmp\n    - name: cache\n      mountPath: /var/cache/nginx\n    - name: run\n      mountPath: /var/run\n  volumes:\n  - name: tmp\n    emptyDir: {}\n  - name: cache\n    emptyDir: {}\n  - name: run\n    emptyDir: {}\nEOF\n\n# ── 5. Verify no warnings on hardened pod ────────────────────────────────\nkubectl get pod hardened-pod -n learning\n\n# ── 6. Confirm it runs as non-root ────────────────────────────────────────\nkubectl exec -n learning hardened-pod -- id\n# uid=1000\n\n# ── 7. Test readOnlyRootFilesystem ────────────────────────────────────────\nkubectl exec -n learning hardened-pod -- touch /test-file\n# Read-only file system — cannot write\n\nkubectl exec -n learning hardened-pod -- touch /tmp/test-file\n# Succeeds — /tmp is an emptyDir\n\n# ── 8. Now enforce restricted on the namespace ────────────────────────────\nkubectl label namespace learning \\\n  pod-security.kubernetes.io/enforce=restricted \\\n  pod-security.kubernetes.io/enforce-version=latest\n\n# ── 9. Try to deploy the insecure pod again ───────────────────────────────\nkubectl apply -n learning -f - << 'EOF'\napiVersion: v1\nkind: Pod\nmetadata:\n  name: insecure-pod-2\nspec:\n  containers:\n  - name: app\n    image: nginx:alpine\nEOF\n# Error: pods \"insecure-pod-2\" is forbidden: violates PodSecurity ...\n\n# ── 10. Clean up ──────────────────────────────────────────────────────────\nkubectl delete pod insecure-pod hardened-pod -n learning\nkubectl label namespace learning \\\n  pod-security.kubernetes.io/warn- \\\n  pod-security.kubernetes.io/enforce-\n```"
+    },
+    {
+      "id": "quiz",
+      "title": "Quiz: container security",
+      "type": "quiz",
+      "questions": [
+        {
+          "q": "A container is running with `privileged: true`. What is the security impact?",
+          "options": [
+            "The container can use more CPU and memory",
+            "All Linux namespace isolation is disabled — the container has root access to the host",
+            "The container can pull images without authentication",
+            "The container bypasses network policies"
+          ],
+          "answer": 1,
+          "explanation": "`privileged: true` disables all Linux namespace and cgroup isolation. The container process has the same access to the host as a process running directly on the node — including access to host filesystems, devices, and the ability to load kernel modules."
+        },
+        {
+          "q": "Which Pod Security Standard level requires `runAsNonRoot: true` and `drop: [ALL]` capabilities?",
+          "options": [
+            "privileged",
+            "baseline",
+            "restricted",
+            "enforced"
+          ],
+          "answer": 2,
+          "explanation": "The `restricted` level is the most hardened PSS policy. It requires non-root user, no privilege escalation, dropping all capabilities (with only NET_BIND_SERVICE allowed to be re-added), and a valid seccomp profile."
+        },
+        {
+          "q": "What does `readOnlyRootFilesystem: true` protect against?",
+          "options": [
+            "Prevents the container from reading sensitive files",
+            "Prevents attackers from installing malware or modifying binaries after a container is compromised",
+            "Makes the container image immutable in the registry",
+            "Prevents the container from writing to PersistentVolumes"
+          ],
+          "answer": 1,
+          "explanation": "A read-only root filesystem means an attacker who gains code execution inside a container cannot persist malware, modify executables, or write to the filesystem. Combined with emptyDir mounts for required writable paths (like /tmp), this is a key hardening control."
+        }
+      ]
+    },
+    {
+      "id": "challenge",
+      "title": "Challenge: secure a real deployment",
+      "type": "challenge",
+      "goal": "Apply the full defence-in-depth checklist to a deployment in the cluster: non-root user, read-only filesystem, dropped capabilities, PSS-compliant, with a dedicated least-privilege ServiceAccount.",
+      "hints": [
+        "Start by deploying without any securityContext and checking what `kubectl auth can-i --list --as=system:serviceaccount:learning:<sa-name>` reveals",
+        "nginx needs /var/cache/nginx, /var/run, and /tmp to be writable — use emptyDir volumes",
+        "The default ServiceAccount has more permissions than you think — create a dedicated one and set `automountServiceAccountToken: false`",
+        "Use `kubectl label namespace learning pod-security.kubernetes.io/warn=restricted` to identify violations before enforcing"
+      ],
+      "success_criteria": [
+        "Pod runs as non-root user (uid >= 1000)",
+        "readOnlyRootFilesystem is true on all containers",
+        "All capabilities are dropped (capabilities.drop includes ALL)",
+        "allowPrivilegeEscalation is false",
+        "Pod uses a dedicated ServiceAccount with automountServiceAccountToken: false",
+        "Namespace has PSS warn=restricted label and pod shows no warnings on apply"
+      ]
+    }
+  ]
+}
