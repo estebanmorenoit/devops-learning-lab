@@ -1,0 +1,76 @@
+---
+# App of Apps — manages ALL ArgoCD Applications via GitOps.
+#
+# The "App of Apps" pattern solves the bootstrap problem:
+#   - This single Application points ArgoCD at the /manifests/apps/ directory
+#   - ArgoCD then creates/manages all Application objects found there
+#   - Adding a new app = add a YAML file to manifests/apps/ and commit to Git
+#
+# Apply once to bootstrap: kubectl apply -f manifests/apps/app-of-apps.yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: app-of-apps
+  namespace: argocd
+  labels:
+    app.kubernetes.io/part-of: devops-learning-lab
+  finalizers:
+  - resources-finalizer.argocd.io
+spec:
+  project: default
+
+  source:
+    # Change this to YOUR repository URL
+    repoURL: https://github.com/YOUR_ORG/YOUR_REPO.git
+    targetRevision: HEAD
+    path: manifests/apps   # the directory containing all Application YAML files
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+    - CreateNamespace=true
+
+---
+# ── Alternative: ApplicationSet (generates Applications dynamically) ────────
+# Use an ApplicationSet when you have many similar apps (e.g., one per environment,
+# one per team, one per directory in a monorepo).
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: per-environment
+  namespace: argocd
+spec:
+  # Generator: one Application per directory in manifests/workloads/
+  generators:
+  - git:
+      repoURL: https://github.com/YOUR_ORG/YOUR_REPO.git
+      revision: HEAD
+      directories:
+      - path: manifests/workloads/*
+
+  template:
+    metadata:
+      # Name = the directory name (e.g., "web-app", "stateful-app")
+      name: "{{path.basename}}"
+      namespace: argocd
+    spec:
+      project: default
+      source:
+        repoURL: https://github.com/YOUR_ORG/YOUR_REPO.git
+        targetRevision: HEAD
+        path: "{{path}}"
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: default
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+        - CreateNamespace=true

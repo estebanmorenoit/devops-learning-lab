@@ -1,0 +1,97 @@
+{
+  "title": "Network Policies",
+  "phase": "security",
+  "week": 3,
+  "category": "Security",
+  "difficulty": "advanced",
+  "duration": "~65 min",
+  "prerequisites": ["k8s-w1-core", "net-w1-protocols", "sec-w2-rbac"],
+  "summary": "By default, Kubernetes allows all pods to communicate with all other pods — a flat network with no isolation. Network Policies are pod-level firewalls that restrict which pods can send or receive traffic and on which ports. Without them, a compromised pod has full lateral movement to every database, API, and service in your cluster.",
+  "sections": [
+    {
+      "id": "default-behavior",
+      "title": "The default open network and why it's dangerous",
+      "type": "lesson",
+      "body": "**Kubernetes default: everything talks to everything.**\n\n```bash\n# In a default cluster, any pod can reach any other pod:\n# Pod A (namespace: default) → can call Pod B (namespace: database)\n# Pod B → can call the Kubernetes API server\n# Compromised pod → can port-scan the cluster, reach secrets, databases\n```\n\n**Why this matters:**\n\n```\nWithout Network Policies:\n  If an attacker compromises a frontend pod, they can:\n    1. Call your database service directly (not just via the app)\n    2. Exfiltrate data to external IPs\n    3. Call the internal Kubernetes API to read Secrets\n    4. Move laterally to backend services not exposed externally\n\nWith Network Policies (zero-trust):\n  frontend pod → can only reach backend pod on port 8080\n  backend pod  → can only reach postgres on port 5432\n  postgres pod → cannot initiate outbound connections at all\n  Any other traffic → DROP\n```\n\n**Network Policies are enforced by the CNI plugin:**\n\n```\nNot all CNI plugins support NetworkPolicy!\n\nSupports NetworkPolicy:\n  Calico     — most feature-rich, supports global policies\n  Cilium     — eBPF-based, high performance, Layer 7 support\n  Weave      — simple setup\n  Antrea     — VMware's CNI\n\nDoes NOT support NetworkPolicy:\n  Flannel    — must pair with Calico for policy enforcement\n  kubenet    — basic CNI (used in some cloud setups)\n\nk3s default: Flannel (no NetworkPolicy support out of the box)\nk3s with --cni=calico or --cni=cilium: full support\n\nNote: in this sandbox, NetworkPolicies can be created but may not be\nenforced depending on the k3s CNI configuration.\n```\n\n**A NetworkPolicy only applies to pods it selects:**\n\n```\nIf no NetworkPolicy selects a pod → allow all (default behavior preserved)\nIf any NetworkPolicy selects a pod → that pod is isolated for that direction\n  (ingress isolation if the policy has ingress rules,\n   egress isolation if the policy has egress rules)\n\nThis means: adding a NetworkPolicy is additive — you whitelist.\nThere is no way to \"deny\" via NetworkPolicy; you only whitelist allowed traffic.\nEverything else is denied once any policy selects the pod.\n```"
+    },
+    {
+      "id": "anatomy",
+      "title": "NetworkPolicy anatomy: selectors and rules",
+      "type": "lesson",
+      "body": "**Basic structure:**\n\n```yaml\napiVersion: networking.k8s.io/v1\nkind: NetworkPolicy\nmetadata:\n  name: my-policy\n  namespace: production\nspec:\n  podSelector:        # which pods this policy applies to\n    matchLabels:\n      app: backend\n  policyTypes:        # which direction(s) this policy controls\n  - Ingress           # control incoming traffic to selected pods\n  - Egress            # control outgoing traffic from selected pods\n  ingress:\n  - from:             # allow traffic FROM these sources\n    - podSelector:    # from pods with this label in same namespace\n        matchLabels:\n          app: frontend\n    ports:            # on these ports\n    - port: 8080\n      protocol: TCP\n  egress:\n  - to:               # allow traffic TO these destinations\n    - podSelector:\n        matchLabels:\n          app: postgres\n    ports:\n    - port: 5432\n```\n\n**podSelector — which pods this policy applies to:**\n\n```yaml\npodSelector: {}              # empty = select ALL pods in namespace\npodSelector:                 # specific pods by label\n  matchLabels:\n    app: api-server\npodSelector:\n  matchExpressions:          # more complex selection\n  - key: tier\n    operator: In\n    values: [\"frontend\", \"backend\"]\n```\n\n**from/to selectors — filter traffic sources/destinations:**\n\n```yaml\nfrom:\n# Option 1: pods in same namespace\n- podSelector:\n    matchLabels:\n      role: monitoring\n\n# Option 2: pods in a specific namespace\n- namespaceSelector:\n    matchLabels:\n      name: monitoring\n\n# Option 3: specific namespace AND specific pods (AND logic)\n- namespaceSelector:\n    matchLabels:\n      name: monitoring\n  podSelector:                  # same list item = AND\n    matchLabels:\n      app: prometheus\n\n# Option 4: either namespace OR pods (OR logic)\n- namespaceSelector:            # separate list items = OR\n    matchLabels:\n      name: monitoring\n- podSelector:\n    matchLabels:\n      app: prometheus\n\n# Option 5: specific external IP ranges\n- ipBlock:\n    cidr: 10.0.0.0/8\n    except:\n    - 10.0.1.0/24             # exclude this subnet\n```\n\n**DNS egress — easy to forget:**\n\n```yaml\n# Without this, pods can't resolve hostnames!\negress:\n- to:\n  - namespaceSelector:        # allow DNS queries to kube-dns\n      matchLabels:\n        kubernetes.io/metadata.name: kube-system\n  ports:\n  - port: 53\n    protocol: UDP\n  - port: 53\n    protocol: TCP\n```"
+    },
+    {
+      "id": "patterns",
+      "title": "Common Network Policy patterns",
+      "type": "lesson",
+      "body": "**Pattern 1: Default deny all**\n\n```yaml\n# Apply to a namespace first, then whitelist specific traffic.\n# The empty podSelector selects ALL pods; no ingress/egress = deny all.\napiVersion: networking.k8s.io/v1\nkind: NetworkPolicy\nmetadata:\n  name: default-deny-all\n  namespace: production\nspec:\n  podSelector: {}   # all pods\n  policyTypes:\n  - Ingress\n  - Egress\n  # No ingress or egress rules = deny everything\n```\n\n**Pattern 2: Allow only frontend → backend traffic**\n\n```yaml\napiVersion: networking.k8s.io/v1\nkind: NetworkPolicy\nmetadata:\n  name: backend-ingress\n  namespace: production\nspec:\n  podSelector:\n    matchLabels:\n      app: backend\n  policyTypes:\n  - Ingress\n  ingress:\n  - from:\n    - podSelector:\n        matchLabels:\n          app: frontend\n    ports:\n    - port: 8080\n      protocol: TCP\n```\n\n**Pattern 3: Namespace isolation (only allow traffic within namespace)**\n\n```yaml\napiVersion: networking.k8s.io/v1\nkind: NetworkPolicy\nmetadata:\n  name: namespace-isolation\n  namespace: staging\nspec:\n  podSelector: {}\n  policyTypes:\n  - Ingress\n  - Egress\n  ingress:\n  - from:\n    - namespaceSelector:\n        matchLabels:\n          kubernetes.io/metadata.name: staging  # same namespace only\n  egress:\n  - to:\n    - namespaceSelector:\n        matchLabels:\n          kubernetes.io/metadata.name: staging\n  - to:  # also allow DNS\n    - namespaceSelector:\n        matchLabels:\n          kubernetes.io/metadata.name: kube-system\n    ports:\n    - port: 53\n      protocol: UDP\n```\n\n**Pattern 4: Allow monitoring namespace to scrape metrics**\n\n```yaml\napiVersion: networking.k8s.io/v1\nkind: NetworkPolicy\nmetadata:\n  name: allow-prometheus-scrape\n  namespace: production\nspec:\n  podSelector: {}  # all pods in production\n  policyTypes:\n  - Ingress\n  ingress:\n  - from:\n    - namespaceSelector:\n        matchLabels:\n          kubernetes.io/metadata.name: monitoring\n    ports:\n    - port: 9090   # metrics endpoint\n      protocol: TCP\n```\n\n**Pattern 5: Egress to specific external service only**\n\n```yaml\napiVersion: networking.k8s.io/v1\nkind: NetworkPolicy\nmetadata:\n  name: api-egress\n  namespace: production\nspec:\n  podSelector:\n    matchLabels:\n      app: api-server\n  policyTypes:\n  - Egress\n  egress:\n  - to:\n    - podSelector:    # internal postgres\n        matchLabels:\n          app: postgres\n    ports:\n    - port: 5432\n  - to:\n    - ipBlock:         # external S3\n        cidr: 52.216.0.0/14  # AWS S3 IP range (example)\n    ports:\n    - port: 443\n  - to:  # DNS\n    - namespaceSelector:\n        matchLabels:\n          kubernetes.io/metadata.name: kube-system\n    ports:\n    - port: 53\n      protocol: UDP\n```"
+    },
+    {
+      "id": "exercise",
+      "title": "Exercise: create and inspect Network Policies",
+      "type": "exercise",
+      "body": "Create network policies for a sample multi-tier application. Note: in this k3s sandbox (Flannel CNI), policies are created but enforcement depends on the CNI. We'll focus on writing and reading the policies correctly.\n\n```bash\n# ── 1. Label the namespaces (required for namespaceSelector) ──────────────\nkubectl label namespace default kubernetes.io/metadata.name=default --overwrite\nkubectl label namespace learning kubernetes.io/metadata.name=learning --overwrite\nkubectl label namespace monitoring kubernetes.io/metadata.name=monitoring --overwrite\n\n# ── 2. Create a deny-all policy for the learning namespace ────────────────\nkubectl apply -f - << 'EOF'\napiVersion: networking.k8s.io/v1\nkind: NetworkPolicy\nmetadata:\n  name: default-deny-all\n  namespace: learning\nspec:\n  podSelector: {}\n  policyTypes:\n  - Ingress\n  - Egress\nEOF\n\n# ── 3. Create the three-tier app labels ──────────────────────────────────\n# Label existing pods (we'll use the api-server deployment)\nkubectl label deployment api-server -n learning tier=backend\n\n# ── 4. Allow monitoring to scrape the backend ─────────────────────────────\nkubectl apply -f - << 'EOF'\napiVersion: networking.k8s.io/v1\nkind: NetworkPolicy\nmetadata:\n  name: allow-monitoring-scrape\n  namespace: learning\nspec:\n  podSelector:\n    matchLabels:\n      tier: backend\n  policyTypes:\n  - Ingress\n  ingress:\n  - from:\n    - namespaceSelector:\n        matchLabels:\n          kubernetes.io/metadata.name: monitoring\n    ports:\n    - port: 9090\n      protocol: TCP\n    - port: 8080\n      protocol: TCP\nEOF\n\n# ── 5. Allow DNS egress (required for any real workload) ──────────────────\nkubectl apply -f - << 'EOF'\napiVersion: networking.k8s.io/v1\nkind: NetworkPolicy\nmetadata:\n  name: allow-dns-egress\n  namespace: learning\nspec:\n  podSelector: {}\n  policyTypes:\n  - Egress\n  egress:\n  - to:\n    - namespaceSelector:\n        matchLabels:\n          kubernetes.io/metadata.name: kube-system\n    ports:\n    - port: 53\n      protocol: UDP\n    - port: 53\n      protocol: TCP\nEOF\n\n# ── 6. Inspect what we created ────────────────────────────────────────────\nkubectl get networkpolicies -n learning\nkubectl describe networkpolicy default-deny-all -n learning\nkubectl describe networkpolicy allow-monitoring-scrape -n learning\n\n# ── 7. Visualize the policy structure ────────────────────────────────────\npython3 << 'PYEOF'\npolicies = [\n    {\"name\": \"default-deny-all\",         \"selects\": \"all pods\", \"ingress\": \"DENY ALL\", \"egress\": \"DENY ALL\"},\n    {\"name\": \"allow-monitoring-scrape\",   \"selects\": \"tier=backend\", \"ingress\": \"FROM monitoring ns :9090,:8080\", \"egress\": \"-\"},\n    {\"name\": \"allow-dns-egress\",          \"selects\": \"all pods\", \"ingress\": \"-\", \"egress\": \"TO kube-system :53/UDP\"},\n]\n\nprint(f\"{'Policy':<30} {'Selects':<20} {'Ingress':<35} {'Egress'}\")\nprint(\"-\" * 100)\nfor p in policies:\n    print(f\"{p['name']:<30} {p['selects']:<20} {p['ingress']:<35} {p['egress']}\")\nPYEOF\n\n# ── 8. Write a network policy for the default namespace ───────────────────\n# Challenge: write a policy that allows:\n#   - web-app pods to receive traffic from any pod in default namespace\n#   - web-app pods to make outbound calls to the learning namespace on port 8080\nkubectl apply -f - << 'EOF'\napiVersion: networking.k8s.io/v1\nkind: NetworkPolicy\nmetadata:\n  name: web-app-policy\n  namespace: default\nspec:\n  podSelector:\n    matchLabels:\n      app: web-app\n  policyTypes:\n  - Ingress\n  - Egress\n  ingress:\n  - from:\n    - namespaceSelector:\n        matchLabels:\n          kubernetes.io/metadata.name: default\n  egress:\n  - to:\n    - namespaceSelector:\n        matchLabels:\n          kubernetes.io/metadata.name: learning\n    ports:\n    - port: 8080\n  - to:  # DNS\n    - namespaceSelector:\n        matchLabels:\n          kubernetes.io/metadata.name: kube-system\n    ports:\n    - port: 53\n      protocol: UDP\nEOF\n\nkubectl get networkpolicies -n default\nkubectl get networkpolicies -n learning\n\n# ── 9. Clean up ───────────────────────────────────────────────────────────\nkubectl delete networkpolicy default-deny-all allow-monitoring-scrape allow-dns-egress -n learning\nkubectl delete networkpolicy web-app-policy -n default 2>/dev/null || true\n```"
+    },
+    {
+      "id": "quiz",
+      "title": "Check your understanding",
+      "type": "quiz",
+      "questions": [
+        {
+          "q": "A pod has a NetworkPolicy that only has policyTypes: [Ingress] with one ingress rule. What happens to its egress traffic?",
+          "options": [
+            "All egress traffic is denied",
+            "All egress traffic is allowed (the policy only controls ingress)",
+            "Only DNS egress is allowed",
+            "Egress is denied unless there is also an Egress policy type"
+          ],
+          "answer": 1,
+          "explanation": "NetworkPolicy only controls the direction(s) listed in policyTypes. If only Ingress is listed, egress traffic is unaffected by this policy (defaults to allow). You need to explicitly add Egress to policyTypes and egress rules to restrict outbound traffic."
+        },
+        {
+          "q": "Two `from` entries in the same ingress rule — how are they evaluated?",
+          "options": [
+            "Both conditions must match (AND logic)",
+            "Either condition can match (OR logic)",
+            "The first matching condition wins",
+            "They cancel each other out"
+          ],
+          "answer": 1,
+          "explanation": "Separate items in the `from` array are OR conditions — traffic is allowed if it matches any one of them. To require AND (e.g., a specific namespace AND a specific pod label), both selectors must be in the SAME list item (as fields of the same object)."
+        },
+        {
+          "q": "You apply a default-deny-all NetworkPolicy to a namespace. Pods can no longer resolve DNS hostnames. Why?",
+          "options": [
+            "The NetworkPolicy blocked TCP port 80",
+            "DNS resolution requires UDP/TCP port 53 egress to kube-system, which is now blocked",
+            "The kube-dns pods were deleted",
+            "NetworkPolicy doesn't affect DNS because DNS uses UDP"
+          ],
+          "answer": 1,
+          "explanation": "DNS resolution sends queries to kube-dns (in kube-system namespace) on port 53/UDP (and sometimes TCP). A default-deny-all policy blocks all egress including DNS. You must add an explicit egress rule allowing port 53 UDP/TCP to the kube-system namespace."
+        }
+      ]
+    },
+    {
+      "id": "challenge",
+      "title": "Challenge: design a zero-trust policy set for a three-tier app",
+      "type": "challenge",
+      "goal": "Design (write as YAML) a complete set of NetworkPolicies for a three-tier application with pods labeled: tier=frontend, tier=backend, tier=database. Apply the principle of least privilege: frontend accepts traffic from anywhere on port 80; frontend can call backend on port 8080; backend can call database on port 5432; database cannot initiate any outbound connection; all tiers can resolve DNS.",
+      "hints": [
+        "You need at least 4 policies: one default-deny, and then whitelist policies for each tier",
+        "Start with default-deny-all on the namespace, then add specific allow rules",
+        "Remember DNS egress (port 53 UDP to kube-system) for all tiers that need it",
+        "Use separate NetworkPolicy objects per tier for clarity rather than one complex policy"
+      ],
+      "success_criteria": [
+        "A default-deny-all policy exists for the namespace",
+        "frontend policy allows ingress from anywhere on port 80",
+        "frontend policy allows egress only to backend on port 8080 (plus DNS)",
+        "backend policy allows ingress only from frontend on port 8080",
+        "backend policy allows egress only to database on port 5432 (plus DNS)",
+        "database policy allows ingress only from backend on port 5432",
+        "database policy has no egress rules (denies all egress)"
+      ]
+    }
+  ]
+}

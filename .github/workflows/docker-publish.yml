@@ -1,0 +1,110 @@
+name: Build & Push Docker Images
+
+# Triggered when a version tag is pushed: git tag v1.2.3 && git push origin v1.2.3
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+env:
+  REGISTRY: docker.io
+  DOCKER_USERNAME: estebanmorenoit
+
+jobs:
+  build-and-push:
+    name: Build ${{ matrix.name }}
+    runs-on: ubuntu-latest
+
+    strategy:
+      # Build all three images in parallel
+      fail-fast: false
+      matrix:
+        include:
+          - name: backend
+            context: ./backend
+            dockerfile: ./backend/Dockerfile
+            image: estebanmorenoit/devops-lab-backend
+
+          - name: bootstrap
+            context: ./backend
+            dockerfile: ./backend/Dockerfile.bootstrap
+            image: estebanmorenoit/devops-lab-bootstrap
+
+          - name: frontend
+            context: ./frontend
+            dockerfile: ./frontend/Dockerfile
+            image: estebanmorenoit/devops-lab-frontend
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Needed for multi-platform (arm64) builds via emulation
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # Generates tags automatically from the git tag:
+      #   v1.2.3  →  1.2.3 · 1.2 · 1 · latest
+      - name: Extract image metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ matrix.image }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            type=raw,value=latest
+
+      - name: Build and push ${{ matrix.name }}
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          # GitHub Actions cache — drastically speeds up repeated builds
+          cache-from: type=gha,scope=${{ matrix.name }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.name }}
+
+  # Creates a GitHub Release with a summary after all images are pushed
+  release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    needs: build-and-push
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          body: |
+            ## Docker Images
+
+            Pull the latest images:
+            ```bash
+            docker pull estebanmorenoit/devops-lab-backend:${{ github.ref_name }}
+            docker pull estebanmorenoit/devops-lab-bootstrap:${{ github.ref_name }}
+            docker pull estebanmorenoit/devops-lab-frontend:${{ github.ref_name }}
+            ```
+
+            Run with a specific version:
+            ```bash
+            VERSION=${{ github.ref_name }} docker compose up -d
+            ```

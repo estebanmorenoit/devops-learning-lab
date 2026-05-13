@@ -1,0 +1,185 @@
+---
+# StatefulSet example — PostgreSQL-like stateful workload with persistent storage.
+#
+# Key differences from Deployments:
+#   - Pods have stable network identities: postgres-0, postgres-1, ...
+#   - Pods have stable storage via volumeClaimTemplates (PVCs created per-pod)
+#   - Pods start/stop in order (postgres-0 before postgres-1)
+#   - Use for: databases, Kafka, ZooKeeper, etcd, anything needing stable identity
+#
+# Apply: kubectl apply -f manifests/workloads/stateful-app.yaml
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-headless
+  namespace: default
+  labels:
+    app: postgres
+spec:
+  # Headless service: no cluster IP, enables DNS-based pod discovery
+  # postgres-0.postgres-headless.default.svc.cluster.local
+  clusterIP: None
+  selector:
+    app: postgres
+  ports:
+  - name: postgres
+    port: 5432
+    targetPort: 5432
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: default
+  labels:
+    app: postgres
+spec:
+  selector:
+    app: postgres
+    role: primary       # only route to the primary
+  ports:
+  - name: postgres
+    port: 5432
+    targetPort: 5432
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: postgres-secret
+  namespace: default
+type: Opaque
+stringData:
+  POSTGRES_USER: "appuser"
+  POSTGRES_PASSWORD: "changeme-use-eso-in-production"
+  POSTGRES_DB: "appdb"
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-config
+  namespace: default
+data:
+  postgresql.conf: |
+    # Performance tuning for a small instance
+    max_connections = 50
+    shared_buffers = 64MB
+    work_mem = 4MB
+    maintenance_work_mem = 16MB
+    wal_level = replica
+    max_wal_senders = 3
+    wal_keep_size = 64MB
+    log_connections = on
+    log_disconnections = on
+    log_duration = off
+    log_min_duration_statement = 1000  # log queries over 1s
+
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres
+  namespace: default
+  labels:
+    app: postgres
+spec:
+  serviceName: postgres-headless   # links to the headless service
+  replicas: 1                      # increase to 2+ for replication (requires config)
+  selector:
+    matchLabels:
+      app: postgres
+  podManagementPolicy: OrderedReady  # start pods in order: 0, 1, 2...
+  updateStrategy:
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: postgres
+        role: primary
+    spec:
+      serviceAccountName: default
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 60
+      containers:
+      - name: postgres
+        image: postgres:16-alpine
+        ports:
+        - name: postgres
+          containerPort: 5432
+        envFrom:
+        - secretRef:
+            name: postgres-secret
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 256Mi
+        livenessProbe:
+          exec:
+            command:
+            - pg_isready
+            - -U
+            - appuser
+            - -d
+            - appdb
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          failureThreshold: 5
+        readinessProbe:
+          exec:
+            command:
+            - pg_isready
+            - -U
+            - appuser
+            - -d
+            - appdb
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        volumeMounts:
+        - name: data
+          mountPath: /var/lib/postgresql/data
+          subPath: pgdata      # use subPath to avoid permissions issues with PVC root
+        - name: config
+          mountPath: /etc/postgresql/postgresql.conf
+          subPath: postgresql.conf
+        securityContext:
+          runAsUser: 999       # postgres user
+          runAsGroup: 999
+          allowPrivilegeEscalation: false
+      volumes:
+      - name: config
+        configMap:
+          name: postgres-config
+
+  # volumeClaimTemplates: creates one PVC per replica automatically
+  # postgres-0 gets PVC "data-postgres-0", postgres-1 gets "data-postgres-1", etc.
+  volumeClaimTemplates:
+  - metadata:
+      name: data
+      labels:
+        app: postgres
+    spec:
+      accessModes:
+      - ReadWriteOnce         # single node access (standard for databases)
+      resources:
+        requests:
+          storage: 1Gi
+      # storageClassName: standard  # uncomment to specify a StorageClass
+
+---
+# PodDisruptionBudget: keep at least 1 postgres pod available during maintenance
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: postgres-pdb
+  namespace: default
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: postgres

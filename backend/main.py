@@ -22,6 +22,7 @@ log = logging.getLogger(__name__)
 
 DATA_DIR = Path(os.environ.get("DATA_DIR", "/data"))
 PROGRESS_FILE = DATA_DIR / "progress.json"
+FEEDBACK_FILE = DATA_DIR / "feedback.json"
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 
 app = FastAPI(title="DevOps Learning API")
@@ -50,6 +51,22 @@ def save_progress(data: dict):
         log.error("Failed to save progress: %s", e)
 
 
+def load_feedback() -> dict:
+    if FEEDBACK_FILE.exists():
+        try:
+            return json.loads(FEEDBACK_FILE.read_text())
+        except Exception as e:
+            log.warning("Feedback file corrupted, resetting: %s", e)
+    return {}
+
+
+def save_feedback(data: dict):
+    try:
+        FEEDBACK_FILE.write_text(json.dumps(data, indent=2))
+    except Exception as e:
+        log.error("Failed to save feedback: %s", e)
+
+
 @app.get("/api/lessons")
 def api_lessons():
     return get_all_lessons()
@@ -75,6 +92,32 @@ async def api_set_progress(key: str, body: dict):
     progress[key] = body.get("done", False)
     save_progress(progress)
     return {"ok": True}
+
+
+@app.delete("/api/progress")
+async def api_reset_progress():
+    save_progress({})
+    return {"ok": True}
+
+
+@app.get("/api/feedback")
+def api_get_feedback():
+    return load_feedback()
+
+
+@app.post("/api/feedback/{key}")
+async def api_set_feedback(key: str, body: dict):
+    fb = load_feedback()
+    vote = body.get("vote")
+    if vote in ("up", "down"):
+        if fb.get(key) == vote:
+            fb.pop(key, None)
+        else:
+            fb[key] = vote
+    else:
+        fb.pop(key, None)
+    save_feedback(fb)
+    return {"ok": True, "vote": fb.get(key)}
 
 
 @app.get("/api/cluster/status")

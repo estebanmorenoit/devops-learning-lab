@@ -1,0 +1,99 @@
+{
+  "title": "Kubernetes RBAC",
+  "phase": "security",
+  "week": 2,
+  "category": "Security",
+  "difficulty": "intermediate",
+  "duration": "~70 min",
+  "prerequisites": ["k8s-w1-core", "k8s-w2-operations"],
+  "summary": "Kubernetes RBAC (Role-Based Access Control) controls who can do what on which resources in the cluster. Every kubectl command is an HTTP request — RBAC decides if that request is allowed. Misconfigured RBAC is one of the most common Kubernetes security failures: pods with cluster-admin ServiceAccounts, users with wildcard permissions, or no RBAC at all.",
+  "sections": [
+    {
+      "id": "rbac-concepts",
+      "title": "RBAC building blocks: Subjects, Verbs, Resources",
+      "type": "lesson",
+      "body": "**Every action in Kubernetes is an HTTP verb on a resource:**\n\n```\nkubectl get pods           → GET    /api/v1/namespaces/default/pods\nkubectl delete deployment  → DELETE /apis/apps/v1/namespaces/default/deployments/my-app\nkubectl apply -f           → PATCH or CREATE depending on existence\n```\n\n**RBAC answers the question:** \"Is `{subject}` allowed to perform `{verb}` on `{resource}` in `{namespace}`?\"\n\n**Subjects — who is making the request:**\n\n```\nUser            — human (e.g., \"alice@company.com\")\n                  Kubernetes has no User objects; identity comes from x.509 certs or OIDC\n\nGroup           — a set of users (e.g., \"devops-team\")\n                  Assigned by the authentication provider (OIDC groups, cert CN)\n\nServiceAccount  — identity for pods (processes running inside the cluster)\n                  Created as an object: kubectl create serviceaccount my-app\n                  Automatically mounted into pods at /var/run/secrets/kubernetes.io/serviceaccount/\n```\n\n**Verbs — what action:**\n\n```\nget       — read a single resource\nlist      — read a collection\nwatch     — stream updates (used by controllers)\ncreate    — create a new resource\nupdate    — replace a resource\npatch     — partially update a resource\ndelete    — delete a resource\ndeletecollection — delete multiple resources\n\n# Special verbs:\nuse       — for PodSecurityPolicy / StorageClass\nbind      — for RoleBindings\nescalate  — create a Role with more permissions than you have\nimpersonate — act as another user\n```\n\n**Resources — what Kubernetes object type:**\n\n```bash\n# List all available resources and their API groups\nkubectl api-resources\n\n# Common resources:\npods                       — core API group (v1)\ndeployments                — apps/v1\nservices                   — v1\nsecrets                    — v1\nconfigmaps                 — v1\nnamespaces                 — v1 (cluster-scoped)\nnodes                      — v1 (cluster-scoped)\nclusterroles               — rbac.authorization.k8s.io/v1\nrolebindings               — rbac.authorization.k8s.io/v1\n```\n\n**Subresources** — actions on a sub-endpoint:\n\n```\npods/log      — kubectl logs\npods/exec     — kubectl exec\npods/portforward — kubectl port-forward\ndeployments/scale — kubectl scale\n\n# Granting exec is a BIG DEAL — it's essentially shell access to the pod:\n# rules:\n# - apiGroups: [\"\"]\n#   resources: [\"pods/exec\"]    # Never grant this in production without careful thought\n#   verbs: [\"create\"]\n```"
+    },
+    {
+      "id": "roles-and-bindings",
+      "title": "Roles, ClusterRoles, and Bindings",
+      "type": "lesson",
+      "body": "**Four RBAC objects:**\n\n```\nRole            — permissions within ONE namespace\nClusterRole     — permissions cluster-wide OR reusable namespace role template\nRoleBinding     — grants a Role or ClusterRole to a Subject within a namespace\nClusterRoleBinding — grants a ClusterRole cluster-wide\n```\n\n**Role — namespace-scoped:**\n\n```yaml\napiVersion: rbac.authorization.k8s.io/v1\nkind: Role\nmetadata:\n  name: pod-reader\n  namespace: production\nrules:\n- apiGroups: [\"\"]           # \"\" = core API group (pods, services, configmaps)\n  resources: [\"pods\", \"pods/log\"]\n  verbs: [\"get\", \"list\", \"watch\"]\n- apiGroups: [\"apps\"]\n  resources: [\"deployments\"]\n  verbs: [\"get\", \"list\"]\n```\n\n**ClusterRole — applies across all namespaces:**\n\n```yaml\napiVersion: rbac.authorization.k8s.io/v1\nkind: ClusterRole\nmetadata:\n  name: node-reader\nrules:\n- apiGroups: [\"\"]\n  resources: [\"nodes\"]\n  verbs: [\"get\", \"list\", \"watch\"]\n- apiGroups: [\"metrics.k8s.io\"]\n  resources: [\"nodes\", \"pods\"]\n  verbs: [\"get\", \"list\"]\n```\n\n**RoleBinding — grants a role to a subject in one namespace:**\n\n```yaml\napiVersion: rbac.authorization.k8s.io/v1\nkind: RoleBinding\nmetadata:\n  name: alice-pod-reader\n  namespace: production\nsubjects:\n- kind: User\n  name: alice@company.com\n  apiGroup: rbac.authorization.k8s.io\n- kind: ServiceAccount\n  name: my-app\n  namespace: production          # ServiceAccount namespace must match\nroleRef:\n  kind: Role\n  name: pod-reader               # must exist in same namespace\n  apiGroup: rbac.authorization.k8s.io\n```\n\n**ClusterRoleBinding — grants a ClusterRole across all namespaces:**\n\n```yaml\napiVersion: rbac.authorization.k8s.io/v1\nkind: ClusterRoleBinding\nmetadata:\n  name: monitoring-reader\nsubjects:\n- kind: ServiceAccount\n  name: prometheus\n  namespace: monitoring\nroleRef:\n  kind: ClusterRole\n  name: node-reader\n  apiGroup: rbac.authorization.k8s.io\n```\n\n**Built-in ClusterRoles (use these as starting points):**\n\n```\ncluster-admin  — full access to everything (use only for break-glass)\nadmin          — full namespace access (cannot modify the namespace itself)\nedit           — read/write most resources (no roles/rolebindings)\nview           — read-only on most resources\n\n# Check what a built-in role allows:\nkubectl describe clusterrole view\n```"
+    },
+    {
+      "id": "production-patterns",
+      "title": "Production RBAC patterns",
+      "type": "lesson",
+      "body": "**Principle of least privilege — never grant more than needed:**\n\n```yaml\n# Bad: app has cluster-admin (seen in the wild far too often)\napiVersion: v1\nkind: ServiceAccount\nmetadata:\n  name: my-app\n---\napiVersion: rbac.authorization.k8s.io/v1\nkind: ClusterRoleBinding\nmetadata:\n  name: my-app-admin\nsubjects:\n- kind: ServiceAccount\n  name: my-app\n  namespace: default\nroleRef:\n  kind: ClusterRole\n  name: cluster-admin     # ← if this pod is compromised, attacker owns the cluster\n  apiGroup: rbac.authorization.k8s.io\n```\n\n**Correct pattern: scope to what the app actually needs:**\n\n```yaml\n# Good: app only reads secrets in its own namespace\napiVersion: rbac.authorization.k8s.io/v1\nkind: Role\nmetadata:\n  name: secret-reader\n  namespace: production\nrules:\n- apiGroups: [\"\"]\n  resources: [\"secrets\"]\n  resourceNames: [\"db-credentials\", \"api-key\"]  # even specific which secrets!\n  verbs: [\"get\"]\n---\napiVersion: rbac.authorization.k8s.io/v1\nkind: RoleBinding\nmetadata:\n  name: my-app-secret-reader\n  namespace: production\nsubjects:\n- kind: ServiceAccount\n  name: my-app\n  namespace: production\nroleRef:\n  kind: Role\n  name: secret-reader\n  apiGroup: rbac.authorization.k8s.io\n```\n\n**Disable automounting for sensitive service accounts:**\n\n```yaml\napiVersion: v1\nkind: ServiceAccount\nmetadata:\n  name: my-app\n  namespace: production\nautomountServiceAccountToken: false   # opt-out of auto-mounting the token\n\n# Or per-pod:\nspec:\n  automountServiceAccountToken: false\n```\n\n**CI/CD pipeline RBAC (deploy-bot pattern):**\n\n```yaml\napiVersion: rbac.authorization.k8s.io/v1\nkind: ClusterRole\nmetadata:\n  name: deploy-bot\nrules:\n- apiGroups: [\"apps\"]\n  resources: [\"deployments\", \"daemonsets\", \"statefulsets\"]\n  verbs: [\"get\", \"list\", \"update\", \"patch\"]\n- apiGroups: [\"\"]    \n  resources: [\"services\", \"configmaps\"]\n  verbs: [\"get\", \"list\", \"create\", \"update\", \"patch\"]\n# Note: no delete, no RBAC objects, no secrets\n```\n\n**ArgoCD RBAC (its own RBAC layer on top of Kubernetes RBAC):**\n\n```yaml\n# argocd-rbac-cm ConfigMap\ndata:\n  policy.csv: |\n    # Format: p, subject, resource, action, object, allow/deny\n    p, role:developer, applications, get, */*, allow\n    p, role:developer, applications, sync, */*, allow\n    p, role:developer, applications, delete, */*, deny\n    g, devops-team, role:admin\n    g, dev-team, role:developer\n  policy.default: role:readonly\n```"
+    },
+    {
+      "id": "audit-debug",
+      "title": "Auditing and debugging RBAC",
+      "type": "lesson",
+      "body": "**Check if a subject can perform an action:**\n\n```bash\n# Can the current user list pods in default namespace?\nkubectl auth can-i list pods\n\n# Can a specific service account list secrets?\nkubectl auth can-i list secrets \\\n  --as=system:serviceaccount:production:my-app \\\n  -n production\n\n# Can a user delete deployments?\nkubectl auth can-i delete deployments \\\n  --as=alice@company.com \\\n  -n staging\n\n# List ALL permissions for a service account:\nkubectl auth can-i --list \\\n  --as=system:serviceaccount:default:default\n```\n\n**Find which roles grant a specific permission:**\n\n```bash\n# Who can list secrets in the monitoring namespace?\nkubectl get rolebindings,clusterrolebindings \\\n  -n monitoring \\\n  -o custom-columns='KIND:.kind,NAME:.metadata.name,ROLE:.roleRef.name,SUBJECTS:.subjects[*].name'\n\n# Get all ClusterRoles that mention secrets\nkubectl get clusterroles -o yaml | grep -A5 'secrets'\n\n# Use rbac-lookup (third-party tool) if available\n# kubectl rbac-lookup serviceaccount:my-app -n production\n```\n\n**Common RBAC errors:**\n\n```\nError: pods is forbidden: User \"alice\" cannot list resource \"pods\" in API group \"\"...\n→ Missing get/list permission on pods\n\nError: cannot get resource \"secrets\" in API group \"\" in the namespace \"production\"\n→ Missing get permission on secrets\n\nError: Forbidden (user=system:anonymous...)\n→ Request not authenticated at all — missing token/cert\n```\n\n**Kubernetes audit log (if enabled):**\n\n```bash\n# On k3s, audit logs go to /var/log/kubernetes/audit.log\n# Each entry shows: who, what verb, on what resource, was it allowed\n# Example:\n{\n  \"user\": {\"username\": \"system:serviceaccount:default:my-app\"},\n  \"verb\": \"get\",\n  \"objectRef\": {\"resource\": \"secrets\", \"namespace\": \"production\", \"name\": \"db-creds\"},\n  \"responseStatus\": {\"code\": 403}  ← denied\n}\n```"
+    },
+    {
+      "id": "exercise",
+      "title": "Exercise: create least-privilege RBAC for a service account",
+      "type": "exercise",
+      "body": "Create a ServiceAccount for a hypothetical monitoring agent and give it exactly the permissions it needs — no more.\n\n```bash\n# ── 1. Create a ServiceAccount ────────────────────────────────────────────\nkubectl create serviceaccount monitoring-agent -n learning\n\n# ── 2. Check current permissions (should be minimal) ─────────────────────\nkubectl auth can-i list pods \\\n  --as=system:serviceaccount:learning:monitoring-agent \\\n  -n learning\n# Expected: no\n\n# ── 3. Create a Role for the agent ───────────────────────────────────────\nkubectl apply -f - << 'EOF'\napiVersion: rbac.authorization.k8s.io/v1\nkind: Role\nmetadata:\n  name: monitoring-agent\n  namespace: learning\nrules:\n- apiGroups: [\"\"]\n  resources: [\"pods\", \"pods/log\"]\n  verbs: [\"get\", \"list\", \"watch\"]\n- apiGroups: [\"\"]\n  resources: [\"services\", \"endpoints\", \"configmaps\"]\n  verbs: [\"get\", \"list\"]\n- apiGroups: [\"apps\"]\n  resources: [\"deployments\", \"replicasets\"]\n  verbs: [\"get\", \"list\"]\nEOF\n\n# ── 4. Bind the Role ──────────────────────────────────────────────────────\nkubectl apply -f - << 'EOF'\napiVersion: rbac.authorization.k8s.io/v1\nkind: RoleBinding\nmetadata:\n  name: monitoring-agent\n  namespace: learning\nsubjects:\n- kind: ServiceAccount\n  name: monitoring-agent\n  namespace: learning\nroleRef:\n  kind: Role\n  name: monitoring-agent\n  apiGroup: rbac.authorization.k8s.io\nEOF\n\n# ── 5. Verify permissions ─────────────────────────────────────────────────\n# Should succeed:\nkubectl auth can-i list pods \\\n  --as=system:serviceaccount:learning:monitoring-agent -n learning\n\nkubectl auth can-i get pods/log \\\n  --as=system:serviceaccount:learning:monitoring-agent -n learning\n\n# Should be denied:\nkubectl auth can-i delete pods \\\n  --as=system:serviceaccount:learning:monitoring-agent -n learning\n\nkubectl auth can-i create secrets \\\n  --as=system:serviceaccount:learning:monitoring-agent -n learning\n\nkubectl auth can-i list pods \\\n  --as=system:serviceaccount:learning:monitoring-agent -n kube-system  # different namespace\n\n# ── 6. Inspect what the agent can do ─────────────────────────────────────\nkubectl auth can-i --list \\\n  --as=system:serviceaccount:learning:monitoring-agent \\\n  -n learning\n\n# ── 7. View the role ─────────────────────────────────────────────────────\nkubectl describe role monitoring-agent -n learning\nkubectl describe rolebinding monitoring-agent -n learning\n\n# ── 8. Clean up ───────────────────────────────────────────────────────────\nkubectl delete rolebinding monitoring-agent -n learning\nkubectl delete role monitoring-agent -n learning\nkubectl delete serviceaccount monitoring-agent -n learning\n```"
+    },
+    {
+      "id": "quiz",
+      "title": "Check your understanding",
+      "type": "quiz",
+      "questions": [
+        {
+          "q": "What is the difference between a Role and a ClusterRole?",
+          "options": [
+            "A Role has more permissions than a ClusterRole",
+            "A Role is namespaced; a ClusterRole is cluster-scoped and can also be used as a namespace role template",
+            "ClusterRoles can only be bound with ClusterRoleBindings",
+            "Roles support more verbs than ClusterRoles"
+          ],
+          "answer": 1,
+          "explanation": "A Role grants permissions within a single namespace. A ClusterRole grants permissions cluster-wide (for cluster-scoped resources like nodes) AND can also be bound within a namespace via a RoleBinding, making it a reusable template."
+        },
+        {
+          "q": "A pod needs to read a ConfigMap named 'app-config' in the same namespace. What is the most secure way to grant this?",
+          "options": [
+            "Bind cluster-admin to the pod's ServiceAccount",
+            "Use the default ServiceAccount which already has read access",
+            "Create a Role with get on configmaps with resourceNames: [app-config] and bind it to the pod's ServiceAccount",
+            "Mount the ConfigMap directly as a volume instead"
+          ],
+          "answer": 2,
+          "explanation": "The principle of least privilege says to grant only what's needed. A Role scoped to the specific ConfigMap name (using resourceNames) and bound to the pod's dedicated ServiceAccount is the most secure approach. The default ServiceAccount has no extra permissions by default."
+        },
+        {
+          "q": "What does `kubectl auth can-i list secrets --as=system:serviceaccount:prod:my-app -n prod` check?",
+          "options": [
+            "Whether the current user can impersonate my-app",
+            "Whether the my-app ServiceAccount in the prod namespace can list secrets in the prod namespace",
+            "Whether secrets exist in the prod namespace",
+            "Whether my-app has a valid JWT token"
+          ],
+          "answer": 1,
+          "explanation": "The --as flag impersonates another identity for the purpose of the authorization check. This command checks if the ServiceAccount named my-app in the prod namespace has permission to list secrets in the prod namespace."
+        }
+      ]
+    },
+    {
+      "id": "challenge",
+      "title": "Challenge: lock down the default namespace",
+      "type": "challenge",
+      "goal": "The default namespace has been running with overly broad access. Create a ServiceAccount named 'web-app-sa' in the default namespace. Grant it permission to only: get/list pods and get configmaps. Verify it cannot create pods, access secrets, or act outside the default namespace.",
+      "hints": [
+        "Create the ServiceAccount first with kubectl create serviceaccount",
+        "Write a Role with two rules blocks: one for pods verbs [get, list] and one for configmaps verbs [get]",
+        "Test with: kubectl auth can-i create pods --as=system:serviceaccount:default:web-app-sa"
+      ],
+      "success_criteria": [
+        "kubectl auth can-i list pods --as=system:serviceaccount:default:web-app-sa -n default → yes",
+        "kubectl auth can-i create pods --as=system:serviceaccount:default:web-app-sa -n default → no",
+        "kubectl auth can-i get secrets --as=system:serviceaccount:default:web-app-sa -n default → no",
+        "kubectl auth can-i list pods --as=system:serviceaccount:default:web-app-sa -n kube-system → no"
+      ]
+    }
+  ]
+}

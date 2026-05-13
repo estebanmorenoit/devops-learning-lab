@@ -1,0 +1,23 @@
+apiVersion: v2
+name: my-chart
+description: A sample Helm chart demonstrating best practices for a web application
+type: application
+version: 0.1.0          # chart version — bump on every chart change
+appVersion: "1.0.0"     # application version — matches the image tag
+
+keywords:
+- web
+- nginx
+- devops
+
+maintainers:
+- name: DevOps Team
+  email: devops@example.com
+
+dependencies: []
+# To add a dependency (e.g., PostgreSQL):
+# dependencies:
+# - name: postgresql
+#   version: "13.x.x"
+#   repository: https://charts.bitnami.com/bitnami
+#   condition: postgresql.enabled

@@ -1,0 +1,46 @@
+---
+# ArgoCD Application — deploys the web-app workload from /manifests/workloads/
+# Apply with: kubectl apply -f manifests/apps/web-app-argocd.yaml
+#
+# This demonstrates a GitOps workflow:
+#   1. Edit workloads/web-app.yaml in your Git repo
+#   2. ArgoCD detects the change and syncs it to the cluster
+#   3. No manual kubectl apply needed
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: web-app
+  namespace: argocd
+  labels:
+    app.kubernetes.io/part-of: devops-learning-lab
+  # Cascade delete: removing this Application removes all cluster resources too
+  finalizers:
+  - resources-finalizer.argocd.io
+spec:
+  project: default
+
+  source:
+    # Point this at YOUR Git repo containing the manifests/workloads/ directory.
+    # For this sandbox, use the local cluster apply approach below.
+    repoURL: https://github.com/argoproj/argocd-example-apps.git
+    targetRevision: HEAD
+    path: guestbook
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: default
+
+  syncPolicy:
+    # automated: uncomment to enable auto-sync
+    # automated:
+    #   prune: true      # delete resources removed from Git
+    #   selfHeal: true   # revert manual kubectl changes
+    syncOptions:
+    - CreateNamespace=true
+    - PrunePropagationPolicy=foreground
+    retry:
+      limit: 3
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m

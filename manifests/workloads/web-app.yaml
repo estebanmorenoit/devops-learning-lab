@@ -1,0 +1,174 @@
+---
+# Web Application — Deployment + Service + HorizontalPodAutoscaler
+# Apply: kubectl apply -f manifests/workloads/web-app.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web-app
+  namespace: default
+  labels:
+    app: web-app
+    version: v1.0.0
+    app.kubernetes.io/name: web-app
+    app.kubernetes.io/component: frontend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: web-app
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0    # never go below desired replicas
+      maxSurge: 1          # allow one extra pod during rollout
+  template:
+    metadata:
+      labels:
+        app: web-app
+        version: v1.0.0
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+        prometheus.io/path: "/metrics"
+    spec:
+      # Dedicated ServiceAccount — never use the default SA for apps
+      serviceAccountName: web-app
+      # Don't auto-mount the SA token unless needed
+      automountServiceAccountToken: false
+      containers:
+      - name: web-app
+        image: nginx:1.25-alpine
+        ports:
+        - name: http
+          containerPort: 80
+          protocol: TCP
+        resources:
+          requests:
+            cpu: 50m
+            memory: 32Mi
+          limits:
+            cpu: 200m        # always set CPU limit in production
+            memory: 64Mi
+        # Liveness: restart if the process hangs
+        livenessProbe:
+          httpGet:
+            path: /
+            port: http
+          initialDelaySeconds: 10
+          periodSeconds: 15
+          failureThreshold: 3
+        # Readiness: don't route traffic until ready
+        readinessProbe:
+          httpGet:
+            path: /
+            port: http
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          failureThreshold: 2
+        # Startup: give extra time on first boot
+        startupProbe:
+          httpGet:
+            path: /
+            port: http
+          failureThreshold: 30
+          periodSeconds: 2
+        env:
+        - name: APP_ENV
+          value: production
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        # Graceful shutdown: wait for in-flight requests
+        lifecycle:
+          preStop:
+            exec:
+              command: ["/bin/sh", "-c", "sleep 5"]
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false  # nginx needs to write tmp files
+          runAsNonRoot: false            # nginx requires root for port binding < 1024
+          capabilities:
+            drop: ["ALL"]
+            add: ["NET_BIND_SERVICE"]
+      # Spread pods across nodes and zones
+      topologySpreadConstraints:
+      - maxSkew: 1
+        topologyKey: kubernetes.io/hostname
+        whenUnsatisfiable: DoNotSchedule
+        labelSelector:
+          matchLabels:
+            app: web-app
+      terminationGracePeriodSeconds: 30
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: web-app
+  namespace: default
+automountServiceAccountToken: false
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: web-app
+  namespace: default
+  labels:
+    app: web-app
+spec:
+  selector:
+    app: web-app
+  ports:
+  - name: http
+    port: 80
+    targetPort: http
+    protocol: TCP
+  type: ClusterIP
+
+---
+# PodDisruptionBudget: ensure at least 1 replica stays available during node drain
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: web-app-pdb
+  namespace: default
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: web-app
+
+---
+# HorizontalPodAutoscaler: scale based on CPU
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: web-app-hpa
+  namespace: default
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: web-app
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300    # don't scale down too quickly
+      policies:
+      - type: Pods
+        value: 1
+        periodSeconds: 60

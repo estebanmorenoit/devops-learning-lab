@@ -1,0 +1,92 @@
+{
+  "title": "Distributed Tracing & OpenTelemetry",
+  "phase": "observability",
+  "week": 3,
+  "category": "Observability",
+  "difficulty": "advanced",
+  "duration": "~80 min",
+  "prerequisites": ["obs-w1-prometheus", "obs-w2-logs"],
+  "summary": "Distributed tracing reveals the full journey of a request as it hops across services, databases, and queues. While metrics say something is slow and logs say what failed, traces show exactly where time is spent and which service is responsible. OpenTelemetry is the industry standard instrumentation SDK; Jaeger and Grafana Tempo are the most common backends.",
+  "sections": [
+    {
+      "id": "what-is-tracing",
+      "title": "What distributed tracing solves",
+      "type": "lesson",
+      "body": "In a monolith, a slow request is easy to find — add a timer, check the stack trace. In microservices, a single user request might touch 10+ services. Logs from each service exist, but correlating them manually is painful.\n\n**The three pillars of observability:**\n\n```\nMetrics  → WHAT is broken (error rate 15%, p99 latency 8s)\nLogs     → WHY it broke (\"DB connection pool exhausted\")\nTraces   → WHERE time is spent across all services\n```\n\n**Core tracing concepts:**\n\n```\nTrace     — the complete journey of one request, end-to-end\n            Identified by a trace_id (e.g., 4bf92f3577b34da6)\n\nSpan      — a single unit of work within a trace\n            Has: name, start_time, duration, attributes, events\n            Example spans in one request:\n              → HTTP handler (120ms total)\n                → authenticate_user (5ms)\n                → db.query users (80ms)\n                  → postgres.execute (78ms)\n                → render_response (2ms)\n\nParent/child — spans form a tree showing call hierarchy\nContext propagation — trace_id flows across service boundaries\n                      via HTTP headers (traceparent, X-B3-TraceId)\n```\n\n**What a trace looks like in a UI:**\n\n```\nTrace: GET /api/orders/123      duration: 245ms\n│\n├── api-gateway                  0ms ─────────────────────────── 245ms\n│   ├── auth-service             5ms ───── 18ms\n│   ├── order-service            22ms ──────────────────── 195ms\n│   │   ├── postgres query       25ms ──────────── 110ms\n│   │   │   └── connection pool  26ms ─── 42ms     (waited 16ms!)\n│   │   └── inventory-service    115ms ──── 145ms\n│   └── cache write              198ms ─── 205ms\n```\n\nThis immediately shows: the bottleneck is the database (110ms) and connection pool wait (16ms), not the inventory service."
+    },
+    {
+      "id": "opentelemetry",
+      "title": "OpenTelemetry: the instrumentation standard",
+      "type": "lesson",
+      "body": "OpenTelemetry (OTel) is a CNCF project that provides a single, vendor-neutral SDK for traces, metrics, and logs. Before OTel, you had to choose: Jaeger SDK, Zipkin SDK, AWS X-Ray SDK — each incompatible.\n\n**OTel architecture:**\n\n```\nYour Application\n    │ OTel SDK (traces + metrics + logs)\n    │\n    ▼\nOTel Collector (optional but recommended)\n    │ receives via OTLP (gRPC or HTTP)\n    │ can filter, sample, batch, re-export\n    │\n    ├──▶ Jaeger    (trace UI)\n    ├──▶ Tempo     (Grafana-native trace backend)\n    ├──▶ Zipkin    (lightweight alternative)\n    └──▶ Datadog, Honeycomb, etc.\n```\n\n**Key OTel concepts:**\n\n```python\nfrom opentelemetry import trace\nfrom opentelemetry.sdk.trace import TracerProvider\nfrom opentelemetry.sdk.trace.export import BatchSpanProcessor\nfrom opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter\n\n# 1. Set up provider\nprovider = TracerProvider()\n\n# 2. Add exporter (where to send spans)\nexporter = OTLPSpanExporter(endpoint=\"http://otel-collector:4317\")\nprovider.add_span_processor(BatchSpanProcessor(exporter))\ntrace.set_tracer_provider(provider)\n\n# 3. Get a tracer\ntracer = trace.get_tracer(\"my-service\")\n\n# 4. Create spans\nwith tracer.start_as_current_span(\"process-order\") as span:\n    span.set_attribute(\"order.id\", order_id)\n    span.set_attribute(\"user.id\", user_id)\n    \n    result = process(order_id)\n    \n    span.set_attribute(\"order.status\", result.status)\n    span.add_event(\"order processed\", {\"items\": len(result.items)})\n```\n\n**Context propagation — how trace_id crosses service boundaries:**\n\n```python\nimport requests\nfrom opentelemetry.propagate import inject\n\n# Service A calling Service B\nwith tracer.start_as_current_span(\"call-inventory\") as span:\n    headers = {}\n    inject(headers)  # injects traceparent header automatically\n    \n    response = requests.get(\n        \"http://inventory-service/api/stock\",\n        headers=headers  # Service B receives this and continues the trace\n    )\n\n# The traceparent header looks like:\n# traceparent: 00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01\n#              version  trace_id                          span_id         flags\n```\n\n**Sampling strategies:**\n\n```\nAlways-on sampling     — record every request\n                         Fine for low-traffic services, expensive at scale\n\nHead-based sampling    — decide at the start (before seeing the trace)\n                         e.g., sample 10% of requests\n                         Problem: misses rare errors in the 90%\n\nTail-based sampling    — decide at the end (after seeing duration/errors)\n                         Sample 100% of errors + slow requests, 1% of fast ones\n                         Requires OTel Collector or Tempo backend support\n                         This is what production systems should use\n```"
+    },
+    {
+      "id": "jaeger-tempo",
+      "title": "Jaeger and Grafana Tempo",
+      "type": "lesson",
+      "body": "**Jaeger** — Uber's open-source tracing system, donated to CNCF.\n\n```\nComponents:\n  jaeger-agent       — receives spans from app (UDP, sidecar or DaemonSet)\n  jaeger-collector   — validates, transforms, stores spans\n  jaeger-query       — serves the UI and API\n  Storage backend    — Cassandra, Elasticsearch, or in-memory (dev)\n\nAll-in-one dev mode (single binary, in-memory):\n  docker run -d --name jaeger \\\n    -p 16686:16686 \\\n    -p 4317:4317 \\\n    jaegertracing/all-in-one:latest\n  # UI: http://localhost:16686\n```\n\n**Grafana Tempo** — Grafana's trace backend, designed for cost efficiency.\n\n```\nAdvantages over Jaeger:\n  - Object storage backend (S3/GCS) — cheap at scale\n  - Integrates natively with Grafana dashboards\n  - TraceQL: query language for traces (like PromQL for metrics)\n  - Metrics generator: converts trace data into Prometheus metrics\n\nDisadvantages:\n  - Newer, less mature than Jaeger\n  - No built-in sampling decisions (relies on OTel Collector)\n```\n\n**TraceQL (Tempo's query language):**\n\n```\n# Find slow spans\n{ duration > 500ms }\n\n# Find spans with errors in a specific service\n{ .service.name = \"order-service\" && status = error }\n\n# Find database spans over 100ms\n{ span.db.system = \"postgresql\" && duration > 100ms }\n\n# Find traces where a specific user had an error\n{ .user.id = \"1234\" && status = error }\n```\n\n**Correlating traces with logs and metrics in Grafana:**\n\n```\n1. Add trace_id to every log line\n   logger.info(\"order processed\", extra={\"trace_id\": get_current_span().get_span_context().trace_id})\n\n2. In Grafana Explore:\n   - Search Loki for logs with trace_id\n   - Click the trace_id → jump to Tempo\n   - From Tempo span → jump to Prometheus metrics for that service\n\nThis is the \"golden path\" for production debugging:\n  Alert fires → open Grafana → look at metrics to understand scope\n  → look at logs to find error message\n  → click trace_id → see exactly which call was slow\n```"
+    },
+    {
+      "id": "instrumentation-exercise",
+      "title": "Exercise: instrument a Python service with OpenTelemetry",
+      "type": "exercise",
+      "body": "Install the OTel SDK and instrument a sample Python service. We'll send traces to stdout (console exporter) for visibility without needing a backend.\n\n```bash\n# ── 1. Install OpenTelemetry SDK ──────────────────────────────────────────\npip3 install opentelemetry-sdk opentelemetry-api --quiet\n\n# ── 2. Write an instrumented service ─────────────────────────────────────\ncat > /workspace/traced-service.py << 'PYEOF'\nimport time\nimport random\nfrom opentelemetry import trace\nfrom opentelemetry.sdk.trace import TracerProvider\nfrom opentelemetry.sdk.trace.export import ConsoleSpanExporter, BatchSpanProcessor\nfrom opentelemetry.sdk.resources import Resource\n\n# Configure provider with service name\nresource = Resource.create({\"service.name\": \"order-service\", \"service.version\": \"1.0.0\"})\nprovider = TracerProvider(resource=resource)\nprovider.add_span_processor(BatchSpanProcessor(ConsoleSpanExporter()))\ntrace.set_tracer_provider(provider)\n\ntracer = trace.get_tracer(\"order-service\")\n\ndef authenticate_user(user_id: int) -> bool:\n    with tracer.start_as_current_span(\"authenticate_user\") as span:\n        span.set_attribute(\"user.id\", user_id)\n        time.sleep(random.uniform(0.005, 0.015))\n        span.set_attribute(\"auth.method\", \"jwt\")\n        return True\n\ndef query_database(query: str) -> list:\n    with tracer.start_as_current_span(\"db.query\") as span:\n        span.set_attribute(\"db.system\", \"postgresql\")\n        span.set_attribute(\"db.statement\", query)\n        latency = random.uniform(0.02, 0.15)\n        time.sleep(latency)\n        if latency > 0.1:\n            span.add_event(\"slow query detected\", {\"threshold_ms\": 100, \"actual_ms\": int(latency * 1000)})\n        return [{\"id\": 1, \"total\": 99.99}]\n\ndef process_order(order_id: int, user_id: int):\n    with tracer.start_as_current_span(\"process_order\") as span:\n        span.set_attribute(\"order.id\", order_id)\n        span.set_attribute(\"user.id\", user_id)\n\n        authenticated = authenticate_user(user_id)\n        if not authenticated:\n            span.set_status(trace.StatusCode.ERROR, \"auth failed\")\n            return None\n\n        orders = query_database(f\"SELECT * FROM orders WHERE id = {order_id}\")\n        span.set_attribute(\"order.items_count\", len(orders))\n        span.add_event(\"order retrieved\", {\"order_id\": order_id})\n        return orders\n\n# Simulate 3 requests\nfor i in range(3):\n    print(f\"\\n--- Processing order {i+1} ---\")\n    result = process_order(order_id=1000 + i, user_id=42)\n    print(f\"Result: {result}\")\n\n# Flush the exporter\nprovider.shutdown()\nPYEOF\n\npython3 /workspace/traced-service.py 2>&1 | head -80\n\n# ── 3. Inspect the span output ────────────────────────────────────────────\n# The console exporter prints JSON spans. Look for:\n#   \"name\": \"process_order\" — the parent span\n#   \"name\": \"db.query\"     — child span with db.statement attribute\n#   \"events\"               — slow query event if latency > 100ms\n\n# ── 4. View trace hierarchy ───────────────────────────────────────────────\n# Spans include parent_id — try to correlate them manually:\npython3 /workspace/traced-service.py 2>&1 | python3 -c \"\nimport sys, json\n\nspans = []\nfor line in sys.stdin:\n    line = line.strip()\n    if line.startswith('{'):\n        try:\n            spans.append(json.loads(line))\n        except:\n            pass\n\nprint(f'\\nCollected {len(spans)} spans:')\nfor s in spans:\n    ctx = s.get('context', {})\n    parent = s.get('parent_id', 'ROOT')\n    name = s.get('name', '?')\n    dur = s.get('end_time', 0) - s.get('start_time', 0)\n    print(f'  [{parent[:8] if parent != \\\"ROOT\\\" else \\\"ROOT    \\\"}] {name:<25} {dur//1000000}ms')\n\"\n\n# ── 5. Add error tracking ─────────────────────────────────────────────────\ncat > /workspace/traced-errors.py << 'PYEOF'\nfrom opentelemetry import trace\nfrom opentelemetry.sdk.trace import TracerProvider\nfrom opentelemetry.sdk.trace.export import ConsoleSpanExporter, SimpleSpanProcessor\n\nprovider = TracerProvider()\nprovider.add_span_processor(SimpleSpanProcessor(ConsoleSpanExporter()))\ntrace.set_tracer_provider(provider)\ntracer = trace.get_tracer(\"demo\")\n\ndef risky_operation():\n    with tracer.start_as_current_span(\"risky_op\") as span:\n        try:\n            raise ValueError(\"database connection refused\")\n        except Exception as e:\n            span.record_exception(e)  # records stack trace in the span\n            span.set_status(trace.StatusCode.ERROR, str(e))\n            raise\n\ntry:\n    risky_operation()\nexcept:\n    pass\n\nprovider.shutdown()\nPYEOF\n\npython3 /workspace/traced-errors.py 2>&1 | python3 -c \"\nimport sys, json\nfor line in sys.stdin:\n    if line.strip().startswith('{'):\n        try:\n            s = json.loads(line.strip())\n            print('Status:', s.get('status'))\n            for ev in s.get('events', []):\n                print('Event:', ev.get('name'))\n                for k, v in ev.get('attributes', {}).items():\n                    if 'stacktrace' in k:\n                        print('Stack trace:', v[:200], '...')\n        except: pass\n\"\n```"
+    },
+    {
+      "id": "quiz",
+      "title": "Check your understanding",
+      "type": "quiz",
+      "questions": [
+        {
+          "q": "What is the primary advantage of tail-based sampling over head-based sampling?",
+          "options": [
+            "It uses less memory",
+            "It can selectively keep 100% of error traces while dropping fast, successful ones",
+            "It is simpler to configure",
+            "It works without an OTel Collector"
+          ],
+          "answer": 1,
+          "explanation": "Tail-based sampling makes the sample decision after the trace is complete, so it can keep all traces with errors or high latency while dropping the majority of fast, successful traces. Head-based sampling decides upfront and may discard rare error traces."
+        },
+        {
+          "q": "What does context propagation achieve in distributed tracing?",
+          "options": [
+            "It compresses span data to reduce network overhead",
+            "It allows the OTel Collector to filter spans",
+            "It carries the trace_id across service boundaries so all spans belong to the same trace",
+            "It authenticates the tracing agent with the backend"
+          ],
+          "answer": 2,
+          "explanation": "Context propagation injects the current trace context (trace_id, span_id) into outgoing HTTP headers (e.g., traceparent). The receiving service extracts these headers and creates a child span, ensuring all work across services is linked under the same trace."
+        },
+        {
+          "q": "Which OTel component is responsible for receiving spans from applications, filtering/batching them, and forwarding to a backend?",
+          "options": [
+            "TracerProvider",
+            "SpanProcessor",
+            "OTel Collector",
+            "Propagator"
+          ],
+          "answer": 2,
+          "explanation": "The OTel Collector is a standalone service that acts as a telemetry pipeline: it receives spans via OTLP, can filter/sample/transform them, and exports to one or more backends (Jaeger, Tempo, Datadog, etc.)."
+        }
+      ]
+    },
+    {
+      "id": "challenge",
+      "title": "Challenge: Add tracing to a multi-function workflow",
+      "type": "challenge",
+      "goal": "Extend /workspace/traced-service.py to add a third nested function called `check_inventory(item_id)` that is called inside `process_order()`. The inventory check should simulate a 50ms external HTTP call and add an attribute `inventory.available` (boolean). At least one run should trigger a slow-query event on the db.query span (>100ms).",
+      "hints": [
+        "Use tracer.start_as_current_span('check_inventory') as a context manager inside process_order()",
+        "Increase the random.uniform upper bound on query_database to ensure some runs exceed 100ms",
+        "Set a boolean attribute with span.set_attribute('inventory.available', True)"
+      ],
+      "success_criteria": [
+        "A span named 'check_inventory' appears in the console output",
+        "The span has an 'inventory.available' attribute",
+        "At least one 'db.query' span includes a 'slow query detected' event"
+      ]
+    }
+  ]
+}
