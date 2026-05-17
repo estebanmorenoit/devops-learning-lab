@@ -1795,8 +1795,9 @@ function renderMD(text) {
       const escaped = raw.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
       const hl = highlight(escaped, lang);
       const runnable = lang === "bash" || lang === "python" || lang === "sh";
+      const attrEsc = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
       const runBtn = runnable
-        ? `<button class="run-in-term-btn" onclick="runInTerminal(this.dataset.code,${JSON.stringify(lang)})" data-code="${raw.replace(/"/g,'&quot;')}">▶ run</button>`
+        ? `<button class="run-in-term-btn" onclick="runInTerminal(this.dataset.code,'${lang}')" data-code="${attrEsc(raw)}">▶ run</button>`
         : "";
       html += `<pre><div class="code-actions"><button class="copy-btn" onclick="copyCode(this)">copy</button>${runBtn}</div><code class="lang-${lang}">${hl}</code></pre>`;
       i++;
