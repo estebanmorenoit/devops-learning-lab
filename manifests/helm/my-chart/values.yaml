@@ -8,7 +8,7 @@ image:
   repository: nginx
   pullPolicy: IfNotPresent
   # Overriding tag allows deploying a specific version without changing the chart
-  tag: "1.30-alpine"
+  tag: "1.31-alpine"
 
 # Additional image pull secrets for private registries
 imagePullSecrets: []
