@@ -70,6 +70,8 @@ services:
       - KUBECONFIG=/tmp/k3s.yaml
       - DATA_DIR=/data
       - K3S_HOST=k3s
+    cap_add:
+      - NET_ADMIN
     ports:
       - "8000:8000"
       - "8080:8080"   # ArgoCD UI (kubectl port-forward via ./start.sh argocd-ui)

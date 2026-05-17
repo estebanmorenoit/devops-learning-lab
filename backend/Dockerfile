@@ -21,6 +21,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     gawk \
     procps \
     net-tools \
+    iproute2 \
+    netcat-openbsd \
+    iptables \
+    ufw \
+    openssh-client \
+    sysstat \
+    traceroute \
+    mtr-tiny \
+    telnet \
     iputils-ping \
     dnsutils \
     openssl \
@@ -60,6 +69,51 @@ RUN set -e; \
         | tar -xz -C /usr/local/bin k9s \
     && chmod +x /usr/local/bin/k9s
 
+# Install Terraform
+RUN set -e; \
+    ARCH=$(dpkg --print-architecture); \
+    curl -fsSL "https://releases.hashicorp.com/terraform/1.9.5/terraform_1.9.5_linux_${ARCH}.zip" \
+        -o /tmp/terraform.zip \
+    && unzip /tmp/terraform.zip terraform -d /usr/local/bin \
+    && rm /tmp/terraform.zip
+
+# Install Vault
+RUN set -e; \
+    ARCH=$(dpkg --print-architecture); \
+    curl -fsSL "https://releases.hashicorp.com/vault/1.17.6/vault_1.17.6_linux_${ARCH}.zip" \
+        -o /tmp/vault.zip \
+    && unzip /tmp/vault.zip vault -d /usr/local/bin \
+    && rm /tmp/vault.zip
+
+# Install Trivy
+RUN set -e; \
+    ARCH=$(dpkg --print-architecture); \
+    [ "$ARCH" = "amd64" ] && TRIVY_ARCH="64bit" || TRIVY_ARCH="ARM64"; \
+    curl -fsSL "https://github.com/aquasecurity/trivy/releases/download/v0.70.0/trivy_0.70.0_Linux-${TRIVY_ARCH}.tar.gz" \
+        | tar -xz -C /usr/local/bin trivy \
+    && chmod +x /usr/local/bin/trivy
+
+# Install kubeseal
+RUN set -e; \
+    ARCH=$(dpkg --print-architecture); \
+    curl -fsSL "https://github.com/bitnami-labs/sealed-secrets/releases/download/v0.36.6/kubeseal-0.36.6-linux-${ARCH}.tar.gz" \
+        | tar -xz -C /usr/local/bin kubeseal \
+    && chmod +x /usr/local/bin/kubeseal
+
+# Install eksctl
+RUN set -e; \
+    ARCH=$(dpkg --print-architecture); \
+    curl -fsSL "https://github.com/eksctl-io/eksctl/releases/download/v0.226.0/eksctl_Linux_${ARCH}.tar.gz" \
+        | tar -xz -C /usr/local/bin eksctl \
+    && chmod +x /usr/local/bin/eksctl
+
+# Install dive
+RUN set -e; \
+    ARCH=$(dpkg --print-architecture); \
+    curl -fsSL "https://github.com/wagoodman/dive/releases/download/v0.13.1/dive_0.13.1_linux_${ARCH}.tar.gz" \
+        | tar -xz -C /usr/local/bin dive \
+    && chmod +x /usr/local/bin/dive
+
 # Python DevOps libraries
 RUN pip install --no-cache-dir \
     boto3 \
@@ -73,7 +127,10 @@ RUN pip install --no-cache-dir \
     python-dotenv \
     jinja2 \
     pytest \
-    pytest-mock
+    pytest-mock \
+    ansible \
+    awscli \
+    uv
 
 # FastAPI backend
 WORKDIR /app
