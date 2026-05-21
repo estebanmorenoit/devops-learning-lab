@@ -1787,14 +1787,16 @@ function renderMD(text) {
     // Fenced code block
     if (line.startsWith("```")) {
       flushPara();
-      const lang = line.slice(3).trim();
+      const langRaw = line.slice(3).trim();
+      const lang = langRaw.split(/\s+/)[0];
+      const norun = langRaw.includes("norun");
       const codeLines = [];
       i++;
       while (i < lines.length && !lines[i].startsWith("```")) { codeLines.push(lines[i]); i++; }
       const raw = codeLines.join("\n");
       const escaped = raw.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
       const hl = highlight(escaped, lang);
-      const runnable = lang === "bash" || lang === "python" || lang === "sh";
+      const runnable = !norun && (lang === "bash" || lang === "python" || lang === "sh");
       const attrEsc = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
       const runBtn = runnable
         ? `<button class="run-in-term-btn" onclick="runInTerminal(this.dataset.code,'${lang}')" data-code="${attrEsc(raw)}">▶ run</button>`
