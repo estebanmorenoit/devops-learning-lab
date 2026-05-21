@@ -26,6 +26,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     iptables \
     ufw \
     openssh-client \
+    lsof \
     sysstat \
     traceroute \
     mtr-tiny \
