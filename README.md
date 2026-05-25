@@ -33,6 +33,8 @@
 
 Every lesson includes written theory and hands-on exercises you complete in a live bash terminal connected to a real k3s cluster. No simulators, no sandboxed abstractions — you run actual `kubectl`, `helm`, `argocd`, and Python commands against real infrastructure.
 
+![Demo](demo-compressed.gif)
+
 ---
 
 ## Architecture
@@ -219,7 +221,7 @@ prod/keycloak/admin
 | 3000 | Frontend | Main UI |
 | 8000 | Backend (FastAPI) | API + WebSocket terminal |
 | 8080 | ArgoCD UI | After `./start.sh argocd-ui` |
-| 3001 | Grafana | After `./start.sh grafana-ui` (admin / prom-operator) |
+| 3001 | Grafana | After `./start.sh grafana-ui` (admin / admin) |
 | 9090 | Prometheus | Manual: `kubectl port-forward svc/monitoring-kube-prometheus-prometheus -n monitoring 9090:9090` |
 
 ---
