@@ -14,6 +14,23 @@
 
 > A self-hosted, interactive lab for learning the full DevOps stack — with a **real Kubernetes cluster** running inside Docker on your laptop.
 
+## Table of contents
+
+- [Architecture](#architecture)
+- [What you get](#what-you-get)
+- [Quick start](#quick-start)
+- [Using the lab](#using-the-lab)
+- [Curriculum](#curriculum)
+- [Commands](#commands)
+- [Sandbox environment](#sandbox-environment)
+- [What's pre-installed in the cluster](#whats-pre-installed-in-the-cluster)
+- [Exposed ports](#exposed-ports)
+- [Persistence](#persistence)
+- [Resetting to a clean state](#resetting-to-a-clean-state)
+- [Contributing](#contributing)
+- [Stack](#stack)
+- [License](#license)
+
 Every lesson includes written theory and hands-on exercises you complete in a live bash terminal connected to a real k3s cluster. No simulators, no sandboxed abstractions — you run actual `kubectl`, `helm`, `argocd`, and Python commands against real infrastructure.
 
 ---
