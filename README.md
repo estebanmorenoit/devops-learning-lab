@@ -71,7 +71,7 @@ Then open **http://localhost:3000**.
 
 ### Dashboard
 
-The dashboard is your home base. It shows all 12 topic cards with your progress on each. Click any card — or any lesson in the left sidebar — to jump straight to it.
+The dashboard is your home base. It shows all 14 topic cards with your progress on each. Click any card — or any lesson in the left sidebar — to jump straight to it.
 
 Lessons are ordered in the recommended sequence. Later topics build on earlier ones, so working through them in order gives the best experience.
 
