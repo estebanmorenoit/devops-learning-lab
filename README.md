@@ -33,7 +33,7 @@
 
 Every lesson includes written theory and hands-on exercises you complete in a live bash terminal connected to a real k3s cluster. No simulators, no sandboxed abstractions — you run actual `kubectl`, `helm`, `argocd`, and Python commands against real infrastructure.
 
-![Demo](demo-compressed.gif)
+![Demo](docs/demo-compressed.gif)
 
 ---
 
