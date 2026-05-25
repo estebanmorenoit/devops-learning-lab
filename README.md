@@ -1,3 +1,5 @@
+![CI](https://github.com/estebanmorenoit/devops-learning-lab/actions/workflows/ci.yml/badge.svg)
+![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
 ![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?style=flat&logo=docker&logoColor=white)
 ![k3s](https://img.shields.io/badge/k3s-Kubernetes-326CE5?style=flat&logo=kubernetes&logoColor=white)
 ![ArgoCD](https://img.shields.io/badge/ArgoCD-GitOps-EF7B4D?style=flat&logo=argo&logoColor=white)
@@ -24,7 +26,7 @@ Every lesson includes written theory and hands-on exercises you complete in a li
 
 ## What you get
 
-- **Structured lessons** across 12 topics, ordered from Linux basics to GitOps, Security, and Observability
+- **Structured lessons** across 14 topics, ordered from Linux basics to GitOps, Security, and Observability
 - A **live k3s Kubernetes cluster** that boots inside Docker — pre-loaded with ArgoCD, Prometheus, Grafana, and External Secrets Operator
 - An **in-browser terminal** (real bash shell) so you can follow along without leaving the UI
 - **Split view** — read the lesson on the left, run commands on the right, side by side
@@ -131,11 +133,14 @@ Type `help-devops` at any time for a quick reference of common commands and shor
 | `kgpa` | `kubectl get pods -A` |
 | `kgn` | `kubectl get nodes` |
 | `kgs` | `kubectl get svc` |
+| `kgd` | `kubectl get deploy` |
 | `kl` | `kubectl logs` |
 | `kd` | `kubectl describe` |
 | `kaf` | `kubectl apply -f` |
+| `kdr` | `kubectl --dry-run=client -o yaml` |
 | `agl` | `argocd app list` |
 | `ags` | `argocd app sync` |
+| `agg` | `argocd app get` |
 
 ### Workspace files
 
@@ -156,9 +161,9 @@ The `/workspace` directory is pre-populated with realistic sample files used acr
 boto3 lessons use a pre-configured mock AWS environment so you can learn the SDK without a real AWS account:
 
 ```
-AWS_DEFAULT_REGION=eu-central-1
+AWS_DEFAULT_REGION=us-east-1
 AWS_ACCOUNT_ID=123456789012
-AWS_PROFILE=prod
+AWS_PROFILE=default
 ```
 
 ---
@@ -222,15 +227,28 @@ prod/keycloak/admin
 
 ---
 
+## Contributing
+
+Contributions are welcome — new lessons, bug fixes, documentation improvements, and tooling enhancements. See [CONTRIBUTING.md](CONTRIBUTING.md) for dev setup, the lesson JSON schema, and the PR checklist.
+
+To run the test suite:
+
+```bash
+./start.sh shell
+python -m pytest tests/ -v
+```
+
+---
+
 ## Stack
 
 | Layer | Technology | Version |
 |-------|-----------|---------|
-| Cluster | k3s | v1.29.4 |
+| Cluster | k3s | v1.36.1 |
 | GitOps | ArgoCD | v2.10.5 |
 | Secrets | External Secrets Operator | latest chart |
 | Monitoring | kube-prometheus-stack | latest chart |
-| Backend | FastAPI + uvicorn | 0.136.1 / 0.47.0 |
+| Backend | Python + FastAPI + uvicorn | 3.14 / 0.136.3 / 0.48.0 |
 | Frontend | nginx alpine | — |
 | Terminal | xterm.js | 5.3.0 |
 
@@ -240,15 +258,20 @@ prod/keycloak/admin
 devops-learning-lab/
 ├── start.sh                      # CLI wrapper for all docker compose operations
 ├── docker-compose.yml            # Four services: k3s, bootstrap, backend, frontend
+├── LICENSE
+├── CONTRIBUTING.md
 ├── data/                         # Persisted data: progress, ArgoCD credentials
 ├── backend/
 │   ├── main.py                   # FastAPI app + PTY WebSocket handler
 │   ├── requirements.txt
-│   ├── Dockerfile                # Python 3.12, kubectl, helm, argocd, Python DevOps libs
+│   ├── Dockerfile                # Python 3.14, kubectl, helm, argocd, Python DevOps libs
 │   ├── Dockerfile.bootstrap      # One-shot cluster setup (alpine/k8s)
 │   ├── lessons/
 │   │   ├── registry.py           # Ordered lesson list and curriculum registry
 │   │   └── content/              # One JSON file per lesson, organised by topic
+│   ├── tests/
+│   │   ├── test_lessons.py       # Lesson schema and registry validation (296 tests)
+│   │   └── test_api.py           # API endpoint tests
 │   └── scripts/
 │       ├── bootstrap-cluster.sh  # Installs ArgoCD, ESO, Prometheus; deploys sample workloads
 │       ├── init-workspace.sh     # Populates /workspace with sample files
@@ -258,3 +281,9 @@ devops-learning-lab/
     ├── Dockerfile                # nginx alpine
     └── nginx.conf                # SPA routing + /api/ and /ws/ proxy to backend
 ```
+
+---
+
+## License
+
+MIT — see [LICENSE](LICENSE).
