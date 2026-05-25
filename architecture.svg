@@ -92,7 +92,7 @@
         font-family="'Segoe UI',Arial,sans-serif" font-size="12" font-weight="600">backend</text>
   <line x1="346" y1="181" x2="600" y2="181" stroke="#21262d" stroke-width="1"/>
   <text x="473" y="196" text-anchor="middle" fill="#e6edf3"
-        font-family="'Segoe UI',Arial,sans-serif" font-size="10">Python 3.12 · FastAPI · uvicorn :8000</text>
+        font-family="'Segoe UI',Arial,sans-serif" font-size="10">Python 3.14 · FastAPI · uvicorn :8000</text>
   <line x1="346" y1="204" x2="600" y2="204" stroke="#21262d" stroke-width="1"/>
   <text x="350" y="218" fill="#7d8590"
         font-family="'Segoe UI',Arial,sans-serif" font-size="9">GET  /api/lessons</text>
@@ -116,7 +116,7 @@
   <text x="473" y="354" text-anchor="middle" fill="#7d8590"
         font-family="'Segoe UI',Arial,sans-serif" font-size="9">Prompt: esteban@sandbox:/workspace$</text>
   <text x="473" y="368" text-anchor="middle" fill="#7d8590"
-        font-family="'Segoe UI',Arial,sans-serif" font-size="9">Lesson content from 22 JSON files</text>
+        font-family="'Segoe UI',Arial,sans-serif" font-size="9">Lesson content from 46 JSON files</text>
 
   <!-- Arrow: Backend → k3s -->
   <line x1="473" y1="381" x2="473" y2="415"
@@ -131,7 +131,7 @@
         fill="#161b22" stroke="#a371f7" stroke-width="2"/>
   <text x="430" y="434" text-anchor="middle" fill="#a371f7"
         font-family="'Segoe UI',Arial,sans-serif" font-size="12" font-weight="600">
-    k3s v1.29.4 — Kubernetes  (rancher/k3s)
+    k3s v1.36.1 — Kubernetes  (rancher/k3s)
   </text>
   <line x1="53" y1="440" x2="807" y2="440" stroke="#21262d" stroke-width="1"/>
 
