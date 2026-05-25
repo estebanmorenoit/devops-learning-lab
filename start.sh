@@ -65,7 +65,7 @@ case "$ACTION" in
             kubectl port-forward svc/monitoring-grafana -n monitoring 3001:80 --address 0.0.0.0 || true
         ;;
     *)
-        echo "  Usage: ./start.sh [up|build|stop|reset|logs|logs-bootstrap|shell|argocd-ui|grafana-ui]"
+        echo "  Usage: ./start.sh [up|build|stop|reset|logs|logs-bootstrap|logs-k3s|restart|shell|argocd-ui|grafana-ui]"
         echo ""
         echo "    up              Start the lab (build images only if not yet built)"
         echo "    build           Force rebuild images, then start"
@@ -73,6 +73,8 @@ case "$ACTION" in
         echo "    reset           Wipe cluster and all state, start fresh"
         echo "    logs            Tail backend + frontend logs"
         echo "    logs-bootstrap  Tail cluster bootstrap logs"
+        echo "    logs-k3s        Tail k3s control-plane logs"
+        echo "    restart         Restart backend container only (no rebuild)"
         echo "    shell           Open a bash shell in the backend container"
         echo "    argocd-ui       Port-forward ArgoCD UI to http://localhost:8080"
         echo "    grafana-ui      Port-forward Grafana to http://localhost:3001"

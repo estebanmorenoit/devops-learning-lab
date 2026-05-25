@@ -8,7 +8,7 @@ on:
 
 env:
   REGISTRY: docker.io
-  DOCKER_USERNAME: estebanmorenoit
+  DOCKER_USERNAME: ${{ vars.DOCKER_USERNAME || 'estebanmorenoit' }}
 
 jobs:
   build-and-push:
@@ -23,17 +23,17 @@ jobs:
           - name: backend
             context: ./backend
             dockerfile: ./backend/Dockerfile
-            image: estebanmorenoit/devops-lab-backend
+            image_suffix: devops-lab-backend
 
           - name: bootstrap
             context: ./backend
             dockerfile: ./backend/Dockerfile.bootstrap
-            image: estebanmorenoit/devops-lab-bootstrap
+            image_suffix: devops-lab-bootstrap
 
           - name: frontend
             context: ./frontend
             dockerfile: ./frontend/Dockerfile
-            image: estebanmorenoit/devops-lab-frontend
+            image_suffix: devops-lab-frontend
 
     steps:
       - name: Checkout
@@ -58,7 +58,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v6
         with:
-          images: ${{ matrix.image }}
+          images: ${{ env.DOCKER_USERNAME }}/${{ matrix.image_suffix }}
           tags: |
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
@@ -99,9 +99,9 @@ jobs:
 
             Pull the latest images:
             ```bash
-            docker pull estebanmorenoit/devops-lab-backend:${{ github.ref_name }}
-            docker pull estebanmorenoit/devops-lab-bootstrap:${{ github.ref_name }}
-            docker pull estebanmorenoit/devops-lab-frontend:${{ github.ref_name }}
+            docker pull ${{ env.DOCKER_USERNAME }}/devops-lab-backend:${{ github.ref_name }}
+            docker pull ${{ env.DOCKER_USERNAME }}/devops-lab-bootstrap:${{ github.ref_name }}
+            docker pull ${{ env.DOCKER_USERNAME }}/devops-lab-frontend:${{ github.ref_name }}
             ```
 
             Run with a specific version:

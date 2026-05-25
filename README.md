@@ -230,7 +230,7 @@ prod/keycloak/admin
 | GitOps | ArgoCD | v2.10.5 |
 | Secrets | External Secrets Operator | latest chart |
 | Monitoring | kube-prometheus-stack | latest chart |
-| Backend | FastAPI + uvicorn | 0.111.0 / 0.29.0 |
+| Backend | FastAPI + uvicorn | 0.136.1 / 0.47.0 |
 | Frontend | nginx alpine | — |
 | Terminal | xterm.js | 5.3.0 |
 

@@ -1,0 +1,44 @@
+name: Lesson issue
+description: Incorrect content, broken command, missing explanation, or outdated information in a lesson
+labels: ["lesson-content"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Found something wrong in a lesson? Help us fix it!
+
+  - type: input
+    id: lesson
+    attributes:
+      label: Lesson key or title
+      placeholder: "e.g. k8s-w1-core / Kubernetes Core Concepts"
+    validations:
+      required: true
+
+  - type: input
+    id: section
+    attributes:
+      label: Section (if applicable)
+      placeholder: "e.g. pods-deployments, quiz question 2"
+
+  - type: dropdown
+    id: issue_type
+    attributes:
+      label: Type of issue
+      options:
+        - Incorrect information
+        - Broken command / code example
+        - Outdated content
+        - Unclear explanation
+        - Missing content
+        - Typo / formatting
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Describe the issue
+      description: What is wrong, and what should it say instead?
+    validations:
+      required: true

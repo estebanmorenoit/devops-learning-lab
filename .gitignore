@@ -14,8 +14,6 @@ build/
 venv/
 .pytest_cache/
 
-# Shell artifact (mistyped glob; directory can be deleted)
-{backend/
 
 # Editor / OS
 .DS_Store
@@ -26,3 +24,4 @@ venv/
 
 # Claude Code session data
 .claude/
+CLAUDE.md

@@ -1,0 +1,60 @@
+name: New lesson proposal
+description: Propose adding a lesson on a topic not currently covered
+labels: ["enhancement", "lesson-content"]
+body:
+  - type: input
+    id: topic
+    attributes:
+      label: Topic
+      placeholder: "e.g. Kustomize, Cilium, OpenTofu"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: category
+    attributes:
+      label: Category
+      options:
+        - Linux & OS
+        - Networking
+        - Docker
+        - Kubernetes
+        - Cloud
+        - Terraform / IaC
+        - Ansible
+        - CI/CD
+        - Helm
+        - GitOps
+        - Security
+        - Observability
+        - Bash
+        - Python
+        - Projects
+        - New category
+    validations:
+      required: true
+
+  - type: dropdown
+    id: difficulty
+    attributes:
+      label: Difficulty
+      options:
+        - beginner
+        - intermediate
+        - advanced
+    validations:
+      required: true
+
+  - type: textarea
+    id: why
+    attributes:
+      label: Why does this belong in the curriculum?
+      description: What gap does it fill? Where in the learning path does it fit?
+    validations:
+      required: true
+
+  - type: textarea
+    id: outline
+    attributes:
+      label: Rough outline (optional)
+      description: Key concepts, commands, or exercises you'd expect to cover.

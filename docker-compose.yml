@@ -33,10 +33,11 @@ services:
 
   # ── bootstrap: installs ArgoCD, ESO, sample workloads ───────────────────
   bootstrap:
-    # Prebuilt image from Docker Hub. Override with VERSION env var to pin a
-    # specific release: VERSION=1.2.3 docker compose up
-    # To build locally instead: docker compose up --build
-    image: estebanmorenoit/devops-lab-bootstrap:${VERSION:-latest}
+    # Prebuilt image from Docker Hub. Override VERSION to pin a specific release:
+    #   VERSION=1.2.3 docker compose up
+    # Override DOCKER_USER to use your own registry when self-hosting:
+    #   DOCKER_USER=myuser docker compose up --build
+    image: ${DOCKER_USER:-estebanmorenoit}/devops-lab-bootstrap:${VERSION:-latest}
     build:
       context: ./backend
       dockerfile: Dockerfile.bootstrap
@@ -53,7 +54,7 @@ services:
 
   # ── backend: FastAPI + PTY WebSocket ────────────────────────────────────
   backend:
-    image: estebanmorenoit/devops-lab-backend:${VERSION:-latest}
+    image: ${DOCKER_USER:-estebanmorenoit}/devops-lab-backend:${VERSION:-latest}
     build:
       context: ./backend
       dockerfile: Dockerfile
@@ -81,7 +82,7 @@ services:
 
   # ── frontend: nginx serving the SPA ─────────────────────────────────────
   frontend:
-    image: estebanmorenoit/devops-lab-frontend:${VERSION:-latest}
+    image: ${DOCKER_USER:-estebanmorenoit}/devops-lab-frontend:${VERSION:-latest}
     build:
       context: ./frontend
       dockerfile: Dockerfile
