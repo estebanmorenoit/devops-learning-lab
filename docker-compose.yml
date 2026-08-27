@@ -2,7 +2,7 @@ services:
 
   # ── k3s: real Kubernetes cluster ──────────────────────────────────────────
   k3s:
-    image: rancher/k3s:v1.36.1-k3s1
+    image: rancher/k3s:v1.36.4-k3s1
     hostname: k3s-node   # fixed hostname → stable node name across container restarts
     command: >
       server
